@@ -18,25 +18,20 @@ use SimpleSAML\Configuration;
 use SimpleSAML\Utils\Random;
 use SAML2\DOMDocumentFactory;
 use SAML2\XML\Chunk;
-use Drupal\minsait_login_clave\Controller\AuthController;
 
 class MinsaitLoginClaveController extends ControllerBase {
 
   protected $messenger;
   protected $logger;
-  protected $authController;
-
-  public function __construct(MessengerInterface $messenger, LoggerChannelFactoryInterface $loggerFactory, AuthController $authController) {
+  public function __construct(MessengerInterface $messenger, LoggerChannelFactoryInterface $loggerFactory) {
     $this->messenger = $messenger;
     $this->logger = $loggerFactory->get('minsait_login_clave');
-    $this->authController = $authController;
   }
 
   public static function create(ContainerInterface $container) {
     return new static(
       $container->get('messenger'),
-      $container->get('logger.factory'),
-      $container->get('minsait_login_clave.auth_controller')
+      $container->get('logger.factory')
     );
   }
 
@@ -48,7 +43,22 @@ class MinsaitLoginClaveController extends ControllerBase {
       throw new ServiceUnavailableHttpException(NULL, 'Error en la configuración de SAML. Clave no habilitada.');
     }
 
-    $this->authController->login($request);
+    $oldEnv = NULL;
+
+    try {
+      [$auth, $sspConfig, $oldEnv] = $this->bootstrapSimpleSaml($config);
+
+      $loginOptions = $this->buildLoginOptions($sspConfig, $config, $request);
+      $auth->requireAuth($loginOptions);
+    }
+    catch (\Throwable $e) {
+      $this->logger->error('Error al iniciar sesión en Cl@ve: @msg', ['@msg' => $e->getMessage()]);
+      $this->messenger->addError($this->t('No se pudo iniciar sesión con Cl@ve.'));
+      return $this->redirect('user.login');
+    }
+    finally {
+      $this->restoreSimpleSamlEnvironment($oldEnv ?? NULL);
+    }
   }
 
   public function processSamlResponse(Request $request) {
