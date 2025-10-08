@@ -4,39 +4,37 @@ namespace Drupal\minsait_login_clave\Controller;
 
 use Drupal\Component\Utility\UrlHelper;
 use Drupal\Core\Controller\ControllerBase;
-use Drupal\Core\Messenger\MessengerInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
+use Drupal\Core\Messenger\MessengerInterface;
 use Drupal\Core\Url;
 use Drupal\user\Entity\User;
-use Symfony\Component\DependencyInjection\ContainerInterface;
-use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Cookie;
-use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
-use \Drupal\Component\Utility\Crypt;
+use SimpleSAML\Assert\AssertionFailedException;
 use SimpleSAML\Auth\Simple;
 use SimpleSAML\Configuration;
 use SimpleSAML\Utils\Random;
 use SAML2\DOMDocumentFactory;
 use SAML2\XML\Chunk;
-use Drupal\minsait_login_clave\Controller\AuthController;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\HttpFoundation\Cookie;
+use Symfony\Component\HttpFoundation\RedirectResponse;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
+use \Drupal\Component\Utility\Crypt;
 
 class MinsaitLoginClaveController extends ControllerBase {
 
   protected $messenger;
   protected $logger;
-  protected $authController;
 
-  public function __construct(MessengerInterface $messenger, LoggerChannelFactoryInterface $loggerFactory, AuthController $authController) {
+  public function __construct(MessengerInterface $messenger, LoggerChannelFactoryInterface $loggerFactory) {
     $this->messenger = $messenger;
     $this->logger = $loggerFactory->get('minsait_login_clave');
-    $this->authController = $authController;
   }
 
   public static function create(ContainerInterface $container) {
     return new static(
       $container->get('messenger'),
-      $container->get('logger.factory'),
-      $container->get('minsait_login_clave.auth_controller')
+      $container->get('logger.factory')
     );
   }
 
@@ -48,7 +46,31 @@ class MinsaitLoginClaveController extends ControllerBase {
       throw new ServiceUnavailableHttpException(NULL, 'Error en la configuración de SAML. Clave no habilitada.');
     }
 
-    $this->authController->login($request);
+    $oldEnv = NULL;
+
+    try {
+      [$auth, $sspConfig, $oldEnv] = $this->bootstrapSimpleSaml($config);
+      $loginOptions = $this->buildLoginOptions($sspConfig, $config, $request);
+
+      if ($auth->isAuthenticated()) {
+        return new RedirectResponse($loginOptions['ReturnTo']);
+      }
+
+      $auth->requireAuth($loginOptions);
+
+      return new RedirectResponse($loginOptions['ReturnTo']);
+    }
+    catch (AssertionFailedException $e) {
+      throw $e;
+    }
+    catch (\Throwable $e) {
+      $this->logger->error('Error al iniciar la autenticación SAML de Cl@ve: @msg', ['@msg' => $e->getMessage()]);
+      $this->messenger->addError($this->t('No se pudo iniciar el inicio de sesión con Cl@ve.'));
+      return $this->redirect('user.login');
+    }
+    finally {
+      $this->restoreSimpleSamlEnvironment($oldEnv ?? NULL);
+    }
   }
 
   public function processSamlResponse(Request $request) {
@@ -107,6 +129,9 @@ class MinsaitLoginClaveController extends ControllerBase {
       $response->headers->setCookie($cookie);
 
       return $response;
+    }
+    catch (AssertionFailedException $e) {
+      throw $e;
     }
     catch (\Throwable $e) {
       $this->logger->error('Error al procesar la respuesta SAML de Cl@ve: @msg', ['@msg' => $e->getMessage()]);
@@ -243,20 +268,7 @@ class MinsaitLoginClaveController extends ControllerBase {
     putenv('SIMPLESAMLPHP_CONFIG_DIR=' . $paths['config_dir']);
 
     $sspConfig = Configuration::getConfig('config.php');
-    $spId = $config->get('sp_id');
-
-    if (is_array($spId)) {
-      $spId = reset($spId);
-    }
-
-    $spId = trim((string) $spId);
-    if ($spId === '') {
-      $spId = (string) $sspConfig->getString('DEFAULT_SPID');
-    }
-
-    if ($spId === '') {
-      throw new \RuntimeException('No se pudo determinar el SPID para Cl@ve.');
-    }
+    $spId = $this->resolveSpId($config, $sspConfig);
 
     $auth = new Simple($spId);
 
@@ -307,6 +319,26 @@ class MinsaitLoginClaveController extends ControllerBase {
       'lib_autoload' => $basePath . '/lib/_autoload.php',
       'autoloads' => $autoloads,
     ];
+  }
+
+  protected function resolveSpId($config, Configuration $sspConfig): string {
+    $spId = $config->get('sp_id');
+
+    if (is_array($spId)) {
+      $spId = reset($spId);
+    }
+
+    $spId = trim((string) $spId);
+
+    if ($spId === '' || strtolower($spId) === 'null') {
+      $spId = (string) $sspConfig->getString('DEFAULT_SPID');
+    }
+
+    if ($spId === '' || strtolower($spId) === 'null') {
+      throw new \RuntimeException('No se pudo determinar el SPID para Cl@ve.');
+    }
+
+    return $spId;
   }
 
   protected function buildLoginOptions(Configuration $sspConfig, $config, Request $request) {

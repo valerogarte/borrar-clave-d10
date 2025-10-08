@@ -11,7 +11,3 @@ services:
     arguments: ['@config.factory', '@current_user', '@request_stack']
     tags:
       - { name: event_subscriber }
-
-  minsait_login_clave.auth_controller:
-    class: Drupal\minsait_login_clave\Controller\AuthController
-    arguments: []
