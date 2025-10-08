@@ -3,8 +3,8 @@
 # --------------------------------------------------
 
 # Dependencias gestionadas por Composer
-/vendor/
-!/vendor/simplesamlphp/
+# /vendor/*
+# !/vendor/simplesamlphp/
 # El binario de Composer (si existe)
 composer.lock
 
