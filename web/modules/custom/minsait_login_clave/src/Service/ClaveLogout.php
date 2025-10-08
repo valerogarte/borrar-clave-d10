@@ -57,55 +57,33 @@ class ClaveLogout {
       throw new ServiceUnavailableHttpException(NULL, 'Error en la configuración de SAML. Clave no habilitada.');
     }
 
-    $kitBasePath = DRUPAL_ROOT . '/../clave';
-    $sspBasePath = $kitBasePath . '/simplesamlphp';
-    $sspConfigDir = $sspBasePath . '/config';
-
-    if (!is_dir($kitBasePath) || !is_dir($sspBasePath) || !is_dir($sspConfigDir)) {
-      $this->logger->error('No se encontró la instalación del kit Cl@ve durante el logout. Base: @base, SimpleSAML: @ssp, Config: @config', [
-        '@base' => $kitBasePath,
-        '@ssp' => $sspBasePath,
-        '@config' => $sspConfigDir,
-      ]);
+    try {
+      $paths = $this->locateSimpleSamlPaths();
+    }
+    catch (\RuntimeException $e) {
+      $this->logger->error('No se pudo localizar SimpleSAMLphp para realizar el logout: @msg', ['@msg' => $e->getMessage()]);
       return;
     }
 
-    $kitAutoload = $kitBasePath . '/vendor/autoload.php';
-    if (file_exists($kitAutoload)) {
-      require_once $kitAutoload;
+    foreach ($paths['autoloads'] as $autoload) {
+      if (file_exists($autoload)) {
+        require_once $autoload;
+      }
     }
 
-    $sspAutoload = $sspBasePath . '/vendor/autoload.php';
-    if (file_exists($sspAutoload)) {
-      require_once $sspAutoload;
-    }
-
-    $sspLibAutoload = $sspBasePath . '/lib/_autoload.php';
-    if (!file_exists($sspLibAutoload)) {
+    if (!file_exists($paths['lib_autoload'])) {
       $this->logger->error('No se pudo cargar el autoloader principal de SimpleSAML para realizar el logout.');
       return;
     }
 
-    require_once $sspLibAutoload;
+    require_once $paths['lib_autoload'];
 
     $oldEnv = getenv('SIMPLESAMLPHP_CONFIG_DIR');
-    putenv('SIMPLESAMLPHP_CONFIG_DIR=' . $sspConfigDir);
+    putenv('SIMPLESAMLPHP_CONFIG_DIR=' . $paths['config_dir']);
 
     try {
       $sspConfig = Configuration::getConfig('config.php');
-      $spId = $config->get('sp_id');
-      if (is_array($spId)) {
-        $spId = reset($spId);
-      }
-      $spId = trim((string) $spId);
-      if ($spId === '') {
-        $spId = $sspConfig->getString('DEFAULT_SPID');
-      }
-      if ($spId === '') {
-        throw new \RuntimeException('No se pudo determinar el SPID para el logout de Cl@ve.');
-      }
-
-      $auth = new Simple($spId);
+      $auth = new Simple($this->resolveSpId($config, $sspConfig));
       if (!$auth->isAuthenticated()) {
         return;
       }
@@ -130,6 +108,70 @@ class ClaveLogout {
         putenv('SIMPLESAMLPHP_CONFIG_DIR');
       }
     }
+  }
+
+  /**
+   * Localiza la instalación de SimpleSAMLphp compatible con Cl@ve.
+   */
+  protected function locateSimpleSamlPaths(): array {
+    $potentialBases = [
+      DRUPAL_ROOT . '/../clave/simplesamlphp',
+      DRUPAL_ROOT . '/../vendor/simplesamlphp/simplesamlphp',
+    ];
+
+    $basePath = NULL;
+    foreach ($potentialBases as $candidate) {
+      if (is_dir($candidate) && is_dir($candidate . '/config')) {
+        $basePath = $candidate;
+        break;
+      }
+    }
+
+    if (!$basePath) {
+      throw new \RuntimeException('No se encontró ninguna instalación válida de SimpleSAMLphp.');
+    }
+
+    $autoloads = [];
+    $kitBase = dirname($basePath);
+    if (basename($kitBase) === 'clave') {
+      $kitAutoload = $kitBase . '/vendor/autoload.php';
+      if (file_exists($kitAutoload)) {
+        $autoloads[] = $kitAutoload;
+      }
+    }
+
+    $sspAutoload = $basePath . '/vendor/autoload.php';
+    if (file_exists($sspAutoload)) {
+      $autoloads[] = $sspAutoload;
+    }
+
+    return [
+      'base_path' => $basePath,
+      'config_dir' => $basePath . '/config',
+      'lib_autoload' => $basePath . '/lib/_autoload.php',
+      'autoloads' => $autoloads,
+    ];
+  }
+
+  /**
+   * Determina el SPID válido en base a la configuración.
+   */
+  protected function resolveSpId($config, Configuration $sspConfig): string {
+    $spId = $config->get('sp_id');
+    if (is_array($spId)) {
+      $spId = reset($spId);
+    }
+
+    $spId = trim((string) $spId);
+    if ($spId === '') {
+      $spId = (string) $sspConfig->getString('DEFAULT_SPID');
+    }
+
+    if ($spId === '') {
+      throw new \RuntimeException('No se pudo determinar el SPID para el logout de Cl@ve.');
+    }
+
+    return $spId;
   }
 
   private function getReturnUrl() {
