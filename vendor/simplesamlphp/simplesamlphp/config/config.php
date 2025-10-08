@@ -635,7 +635,7 @@ $config = [
      *
      * If unset, SimpleSAMLphp will try to automatically determine the right value
      */
-    //'session.cookie.secure' => true,
+    'session.cookie.secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
 
     /*
      * Set the SameSite attribute in the cookie.
@@ -654,7 +654,7 @@ $config = [
      * Example:
      *  'session.cookie.samesite' => 'None',
      */
-    'session.cookie.samesite' => $httpUtils->canSetSameSiteNone() ? 'None' : null,
+    'session.cookie.samesite' => 'None',
 
     /*
      * Options to override the default settings for php sessions.
