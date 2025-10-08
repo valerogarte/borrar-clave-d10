@@ -1,0 +1,9 @@
+{
+    "name": "paquete-integracion-clave/paquete-integracion-clave",
+    "autoload": {
+        "psr-4": {
+            "SPClave\\": "src/"
+        }
+    },
+    "require": {}
+}

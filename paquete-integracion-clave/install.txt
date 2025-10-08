@@ -1,0 +1,55 @@
+Pasos para instalar el kit de integración de Cl@ve PHP
+
+-----------------------------------------------------------------------
+IMPORTANTE:
+- Este kit es Plug&Play.
+- A fecha de marzo del 2025 es completamente operacional contra el entorno de Servicios Estables si se siguen los pasos de instalación que se detallan a continuación teniendo en cuenta que previamente se debe cursar una solicitud de alta junto con las modificaciones pertinentes en la configuración por defecto para que se ajuste a la configuración del ProviderName dado de alta.
+-----------------------------------------------------------------------
+
+1.- Descomprimir el paquete donde se desee y copiar el contenido de paquete-integracion-clave en la carpte de Apache
+
+2.- En el fichero de configuración del Apache "httpd.conf" asegurarse que la línea 'LoadModule rewrite_module modules/mod_rewrite.so' está descomentada
+
+2.- En el fichero de confiuración del Apache "httpd-vhosts.conf" añadir el siguiente VirtualHost:
+    (Sustituir "<RUTA paquete-integracion-clave>" por la ruta completa a la carpeta del paquete
+     P. ej. "C:\xampp\htdocs\paquete-integracion-clave")
+
+<VirtualHost *:80>
+	ServerName localhost
+
+	RewriteEngine On
+	RewriteCond %{HTTPS} off
+	RewriteRule (.*) https://%{HTTP_HOST}%{REQUEST_URI}
+</VirtualHost>
+
+<VirtualHost *:443>
+	ServerName localhost
+
+	SSLEngine on
+	SSLCertificateFile "conf/ssl.crt/server.crt"
+	SSLCertificateKeyFile "conf/ssl.key/server.key"
+
+	Alias /simplesaml "<RUTA paquete-integracion-clave>\simplesamlphp\public"
+
+	DocumentRoot "<RUTA paquete-integracion-clave>\public"
+	<Directory "<RUTA paquete-integracion-clave>\simplesamlphp\public">
+		Options Indexes FollowSymLinks
+		AllowOverride All
+		Require all granted
+	</Directory>
+
+	<Directory "<RUTA paquete-integracion-clave>\public">
+		AllowOverride None
+		Options +FollowSymLinks
+		RewriteEngine On
+		RewriteCond %{REQUEST_FILENAME} !-f
+		RewriteCond %{REQUEST_FILENAME} !-d
+		RewriteRule ^(.*)$ index.php [QSA,L]
+		Require all granted
+	</Directory>
+</VirtualHost>
+
+3.- Reiniciar apache
+
+4.- Visitar https://localhost
+Importante: la aplicación debe correr en https para el correcto funcionamiento de SimpleSAML

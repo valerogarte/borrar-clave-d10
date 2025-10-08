@@ -1,0 +1,125 @@
+<?php
+
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Url;
+use Drupal\Core\Link;
+use Drupal\Core\Session\AccountInterface;
+use Drupal\field\Entity\FieldStorageConfig;
+use Drupal\field\Entity\FieldConfig;
+use Drupal\Core\Entity\Entity\EntityFormDisplay;
+use Drupal\Core\Entity\Entity\EntityViewDisplay;
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\EntityStorageException;
+
+define('FIELD_NUMERO_DOCUMENTO', 'field_numero_documento');
+
+/**
+ * Implements hook_entity_presave().
+ */
+function minsait_login_clave_user_presave(AccountInterface $account) {
+  $config = \Drupal::config('minsait_login_clave.settings');
+  $numero_documento = $account->get($config->get('id_field'))->value;
+
+  if ($numero_documento) {
+    $query = \Drupal::entityQuery('user')
+      ->accessCheck(FALSE)
+      ->condition($config->get('id_field'), $numero_documento);
+
+    // Si es una edición, excluye el usuario actual.
+    if (!$account->isNew()) {
+      $query->condition('uid', $account->id(), '<>');
+    }
+
+    $existing_uids = $query->execute();
+
+    if (!empty($existing_uids)) {
+      throw new EntityStorageException('Ya existe otro usuario con el mismo número de documento.');
+    }
+  }
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function minsait_login_clave_form_alter(&$form, FormStateInterface $form_state, $form_id) {
+  if (in_array($form_id, ['user_login_form', 'user_register_form'])) {
+    $config = \Drupal::config('minsait_login_clave.settings');
+    if ($config->get('enable_clave')) {
+      $url = Url::fromUserInput('/user/login/clave');
+      $literal = $config->get('login_literal') ?? 'Acceso con Cl@ve';
+      $link = Link::fromTextAndUrl(t($literal), $url)->toString();
+
+      $form['minsait_login_clave_link'] = [
+        '#type' => 'markup',
+        '#markup' => '<div class="minsait-login-clave-link" style="margin-top: 20px;">' . $link . '</div>',
+        '#weight' => 100,
+      ];
+    }
+  }
+  
+  if ($form_id === 'user_form') {
+    $form['#validate'][] = 'minsait_login_clave_user_form_validate';
+  }
+}
+
+/**
+ * Custom validation handler for user edit form.
+ */
+function minsait_login_clave_user_form_validate(array &$form, FormStateInterface $form_state) {
+  $config = \Drupal::config('minsait_login_clave.settings');
+
+  if ($config->get('id_field') !== null) {
+    
+    $numero_documento = $form_state->getValue($config->get('id_field'));
+  
+    if (!empty($numero_documento)) {
+      if (is_array($numero_documento) && isset($numero_documento[0]["value"])) {
+        $numero_documento = $numero_documento[0]["value"];
+      }
+      $numero_documento = trim($numero_documento);
+      if (empty($numero_documento)) {
+        return;
+      }
+      // Validación de formato: DNI (8 dígitos + letra) o pasaporte español (3 letras + 6 dígitos + letra).
+      if (!(preg_match('/^[0-9]{8}[A-Za-z]$/', $numero_documento) || preg_match('/^[A-Z]{3}[0-9]{6}[A-Za-z]$/', $numero_documento))) {
+        $form_state->setErrorByName($config->get('id_field'), t('Número de documento inválido. Debe ser un DNI o pasaporte español válido.'));
+        return;
+      }
+    
+      $query = \Drupal::entityQuery('user')
+        ->accessCheck(FALSE)
+        ->condition($config->get('id_field'), $numero_documento);
+  
+      // Exclude the current user if editing.
+      $uid = $form_state->getFormObject()->getEntity()->id();
+      if ($uid) {
+        $query->condition('uid', $uid, '<>');
+      }
+  
+      $existing_uids = $query->execute();
+  
+      if (!empty($existing_uids)) {
+        $form_state->setErrorByName($config->get('id_field'), t('Ya existe otro usuario con el mismo número de documento.'));
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_user_logout().
+ */
+function minsait_login_clave_user_logout(AccountInterface $account) {
+  $config = \Drupal::config('minsait_login_clave.settings');
+  if ($config->get('enable_clave') && $config->get('logout_clave')) {
+    if (isset($_COOKIE['minsait_login_clave'])) {
+      // Elimina la cookie específica.
+      setcookie('minsait_login_clave', '', time() - 3600, '/');
+      
+      // Deslogar al usuario
+      $session = \Drupal::request()->getSession();
+      $session->invalidate();
+  
+      \Drupal::service('minsait_login_clave.clave_logout')->logout();
+    }
+  }
+}

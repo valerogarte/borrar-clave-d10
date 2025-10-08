@@ -1,0 +1,134 @@
+----------------------------------------------------------------------------------------------------------------
+-> NOTAS IMPORTANTES PARA CONECTAR EL KIT CONTRA CLAVE2 PASARELA DEL ENTORNO DE SERVICIOS ESTABLES:
+----------------------------------------------------------------------------------------------------------------
+ - La configuración del presente Kit utiliza un certificado de prueba, a modo de ejemplo, para poder conectarse con Servicios Estables. Dicha configuración debe cambiarse por la que utilice el Organismo en Servicios Estables. Hay que tener en cuenta que todo Organismo que vaya a utilizar Clave debe realizar una solicitud de alta en el servicio, y que el certificado que vaya a utilizar debe de ser emitido para el Organismo. En otro caso podría pasar que varios Organismos utilizaran para sus accesos el certificado de serie añadido en los kits.
+
+--> CONFIGURAR KIT PHP CLAVE PARA CONECTAR CON EL SP '21114293V_E04975701' DE SERVIOS ESTABLES:
+
+ 1.- CONFIGURACIÓN BASE DE SIMPLESAML
+  Crear el archivo 'simplesamlphp/config/config.php' partiendo de 'simplesamlphp/config/config.php.dist' y añadir al final del archivo 'simplesamlphp/config/config.php' el siguiente código:
+
+    /**
+    * Configuración custom
+    */
+
+    // URL base de SimpleSAML
+    $config['baseurlpath'] = 'https://' . $_SERVER['HTTP_HOST'] . '/simplesaml';
+
+    // Ubicación del directorio de caché de SimpleSAML
+    $config['cachedir'] = __DIR__ . '/../cache';
+
+    // IMPORTANTE
+    // Activar el módulo custom para el correcto funcionamiento de SimpleSAML con Clave
+    $config['module.enable']['clave'] = TRUE;
+
+    // URL Base de la aplicación
+    $config['ASSERTION_URL'] = 'https://' . $_SERVER['HTTP_HOST'];
+    $config['INCLUDE_RELAYSTATE_ATTR'] = TRUE;
+
+    // Parámetros para login con eIDAS
+    $config['NS_EIDAS'] = 'http://eidas.europa.eu/saml-extensions';
+    $config['NS_EIDAS_NATURAL'] = 'http://eidas.europa.eu/attributes/naturalperson';
+
+    // ID SP
+    $config['DEFAULT_SPID'] = '21114293V_E04975701';
+
+    // Configuración de los IdPs disponibles en Clave
+    $config['idsAttrs'] = ['AFirmaIdP', 'GISSIdP', 'EIDASIdP', 'RelayState', 'CLVMOVILIdP'];
+    $config['attrs'] = [
+        'PersonIdentifier.uri' => 'http://eidas.europa.eu/attributes/naturalperson/PersonIdentifier',
+        'CurrentGivenName.uri' => 'http://eidas.europa.eu/attributes/naturalperson/CurrentGivenName',
+        'CurrentFamilyName.uri' => 'http://eidas.europa.eu/attributes/naturalperson/CurrentFamilyName',
+        'FirstSurname.uri' => 'http://es.minhafp.clave/FirstSurname',
+        'PartialAfirma.uri' => 'http://es.minhafp.clave/PartialAfirma',
+        'SelectedIdP.uri' => 'http://es.minhafp.clave/SelectedIdP',
+        'AFirmaIdP.name' => 'AFirmaIdP',
+        'AFirmaIdP.uri' => 'http://es.minhafp.clave/AFirmaIdP',
+        'AFirmaIdP.nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:uri',
+        'AFirmaIdP.value' => NULL,
+        'GISSIdP.name' => 'GISSIdP',
+        'GISSIdP.uri' => 'http://es.minhafp.clave/GISSIdP',
+        'GISSIdP.nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:uri',
+        'GISSIdP.value' => NULL,
+        'EIDASIdP.name' => 'EIDASIdP',
+        'EIDASIdP.uri' => 'http://es.minhafp.clave/EIDASIdP',
+        'EIDASIdP.nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:uri',
+        'EIDASIdP.value' => NULL,
+        'RelayState.name' => 'RelayState',
+        'RelayState.uri' => 'http://es.minhafp.clave/RelayState',
+        'RelayState.nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:uri',
+        'RelayState.value' => NULL,
+        'CLVMOVILIdP.name' => 'CLVMOVILIdP',
+        'CLVMOVILIdP.uri' => 'http://es.minhafp.clave/CLVMOVILIdP',
+        'CLVMOVILIdP.nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:uri',
+        'CLVMOVILIdP.value' => NULL,
+    ];
+
+ 2.- CONFIGURACIÓN DEL SP
+  Crear el archivo 'simplesamlphp/config/authsources.php' partiendo de 'simplesamlphp/config/authsources.php.dist' y añadir al archivo la configuración del SP:
+
+    $config = [
+    '21114293V_E04975701' => [
+        'clave:SPClave', //IMPORTANTE configurar este SP para funcionar con el módulo custom 'clave'
+        'certificate' => 'eidas_certificado_pruebas___99999972c.crt',
+        'privatekey' => 'eidas_certificado_pruebas___99999972c.pem',
+        'privatekey_pass' => 'changeit',
+        'name' => [
+            'en' => 'demo-sp-php',
+            'pt' => 'demo-sp-php',
+            'es' => 'demo-sp-php'
+        ],
+        'sign.authnrequest' => TRUE,
+        'sign.logout' => TRUE,
+        'entityID' => 'https://' . $_SERVER['HTTP_HOST'] . '/simplesaml/module.php/saml/sp/saml2-acs.php/21114293V_E04975701',
+        'idp' => 'https://se-pasarela.clave.gob.es',
+        'ProviderName' => '21114293V_E04975701;SPApp',
+        'OrganizationName' => [
+            'es' => 'SP nodo Eidas'
+        ],
+        'OrganizationDisplayName' => [
+            'es' => 'SP nodo Eidas'
+        ],
+        'OrganizationURL' => [
+            'es' => 'https://se-eidas.redsara.es'
+        ],
+    ];
+
+ 3.- CONFIGURACIÓN DEL IdP
+  Crear el archivo 'simplesamlphp/metadata/saml20-idp-remote.php' partiendo de 'simplesamlphp/metadata/saml20-idp-remote.php' y añadir el siguiente código:
+
+    $metadata['https://se-pasarela.clave.gob.es'] = [
+
+      //Configuración del login en Pasarela
+      'SingleSignOnService' => [
+          [
+              'Location' => 'https://se-pasarela.clave.gob.es/Proxy2/ServiceProvider',
+              'Binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST',
+          ]
+      ],
+
+      //Configuración del logout en Pasarela
+      'SingleLogoutService' => [
+          [
+              'Location' => 'https://se-pasarela.clave.gob.es/Proxy2/ServiceProvider',
+              'Binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST',
+          ],
+      ],
+
+      //Certificado público que permite confiar con el certificado que firma las peticiones SAML que vuelven de CLAVE PASARELA
+      'certificate' => 'sello_entidad_sgad_pruebas.cer',
+
+      //Establecer sha512 como algoritmo de cifrado
+      'signature.algorithm' => 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha512',
+  ];
+
+ 4.- CONTENIDO DE LA CARPETA 'simplesamlphp/cert':
+   - eidas_certificado_pruebas___99999972c.crt: certificado para conectar el kit con CLAVE PASARELA, que contiene la parte pública y privada. Para extraer este certificado, hay que abrir el contenedor 'ACTIVO_EIDAS_CERTIFICADO_PRUEBAS___99999972C.p12' con el 'KeyStore Explorer' (pwd: changeit), y exportar el propio certificado en formato 'PEM'. El certificado exportado en formato 'PEM' es el que vamos a guardar en un nuevo fichero con el nombre 'eidas_certificado_pruebas___99999972c.crt'.
+
+   - 'eidas_certificado_pruebas___99999972c.pem': abrimos el contenedor 'ACTIVO_EIDAS_CERTIFICADO_PRUEBAS___99999972C.p12' con el 'KeyStore Explorer' (pwd: changeit), y hacer el export 'export private key' (pwd: changeit) con format 'PKCS #8' (importante cifrar la exportación con el pwd 'changeit'). Cambiar la extensión del fichero generado a '.pem', abrirlo, y añadir al final del fichero todo el texto del fichero de antes: 'eidas_certificado_pruebas___99999972c.crt'.
+
+   - 'sello_entidad_sgad_pruebas.cer': certificado público que permite confiar con el certificado que firma las peticiones SAML que vuelven de CLAVE2 PASARELA hacia el Kit. Es responsabilidad del organismo, actualizar este certificado en dicho KeyStore, con el certificado activo correspondiente en el momento de uso de este Kit.
+
+   - 'eidas_certificado_pruebas___99999972c.cer': se trata de la parte pública del contenedor 'ACTIVO_EIDAS_CERTIFICADO_PRUEBAS___99999972C.p12', y debe estar importado (a través de WEBPORTAL de SERVICIOS ESTABLES) en la tabla de certificados del SP '21114293V_E04975701' (SP configurado en 'authsources.php'). Una vez cargado el certificado en el SP, hay que esperar a que se ejecute el daemon 'AutoDiscoverDaemon' que sincroniza los certificados des de la BDD hacia los KeyStores. Actualmente dicho SP ya tiene configurado este certificado público.
+
+El Manual de Integración para SPs puede descargarse en la sección "Kit de Integración Cl@ve 2 - eIDAS" de https://administracionelectronica.gob.es/ctt/clave/descargas

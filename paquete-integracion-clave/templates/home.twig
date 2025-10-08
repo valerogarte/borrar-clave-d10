@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Service Provider</title>
+    <link href="../assets/css/estilos.css" rel="stylesheet" type="text/css"/>
+</head>
+
+<body>
+<div id="contenedor" class="container">
+
+    <div id="borde" class="borde">
+
+        <div id="principal" class="contenido">
+
+            <h1 class="colorAzul" id="TituloBody">PROVEEDOR DE SERVICIOS DE EJEMPLO<br></h1>
+            <p>Bienvenido al proveedor de servicios de ejemplo que ilustra el proceso de integración con las plataformas
+                del MINHAFP Cl@ve y eIDAS. A continuación puede enviar una solicitud por defecto haciendo clic en el
+                botón "Iniciar sesión" o puede configurar una petición a medida utilizando el siguiente formulario.</p>
+
+            <fieldset>
+                <h2>CONFIGURACIÓN DEL PROVEEDOR DE SERVICIOS</h2>
+                <form action="/">
+                    <label>
+                        <b>Seleccione un proveedor de servicios:</b>
+                        <select name="source">
+                            {% for source in sources %}
+                                <option value="{{ source }}" {{ spid == source ? 'selected': '' }}>{{ source }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <div id="botonIniSesion"><input type="submit" value="Actualizar SP"/></div>
+                </form>
+            </fieldset>
+
+            <p><b>ID DE ESTE PROVEEDOR DE SERVICIOS:</b> {{ spid }}</p>
+            <p><b>URL DEL SERVICIO:</b> {{ idp }}</p>
+            <p><b>URL DE RETORNO:</b> {{ assertion_url }}</p>
+
+            {% include 'select-attributes.twig' %}
+
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,4 @@
+administer minsait_login_clave configuration:
+  title: 'Administer minsait_login_clave configuration'
+  description: 'Optional description.'
+  restrict access: true

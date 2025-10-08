@@ -1,0 +1,8 @@
+---
+
+clave-sp-singleLogoutService:
+    path: /sp/clave-logout/{sourceId}
+    defaults: {
+        _controller: 'SimpleSAML\Module\clave\Controller\ClaveServiceProvider::singleLogoutService'
+    }
+    methods: [GET, POST]

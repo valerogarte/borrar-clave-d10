@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <title>Service Provider</title>
+    <link href="../assets/css/estilos.css" rel="stylesheet" type="text/css"/>
+</head>
+
+<body>
+<div id="contenedor" class="container">
+    <div id="borde" class="borde">
+
+        <div id="principal" class="contenido">
+
+            <h1 class="colorAzul" id="TituloBody">PROVEEDOR DE SERVICIOS DE EJEMPLO<br></h1>
+
+            <h2>Login realizado con éxito </h2>
+
+            <table class="tabla">
+                <tr class="filatit">
+                    <td>Atributo</td>
+                    <td>Valores</td>
+                </tr>
+
+                {% for key, value in attributes %}
+                    <tr class="filaresult">
+                        <td>{{ key }}</td>
+                        <td>{{ value }}</td>
+                    </tr>
+                {% endfor %}
+            </table>
+
+            <p>Por favor, haga clic <a href="/">aquí</a> para ir a la página principal.</p>
+
+            <div class="center">
+                <form id="LogoutPage" name="LogoutPage" action="/logout" method="POST">
+                    <input type="hidden" name="default" value="true"/><br>
+                    <input type="submit" id="LogoutSesion" value="Cerrar sesión"/>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

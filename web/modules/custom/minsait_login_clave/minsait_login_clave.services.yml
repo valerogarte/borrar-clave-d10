@@ -1,0 +1,17 @@
+services:
+  minsait_login_clave.clave_logout:
+    class: Drupal\minsait_login_clave\Service\ClaveLogout
+    arguments:
+      - '@logger.factory'
+      - '@config.factory'
+      - '@request_stack'
+
+  minsait_login_clave.event_subscriber:
+    class: Drupal\minsait_login_clave\EventSubscriber\ClaveInitSubscriber
+    arguments: ['@config.factory', '@current_user', '@request_stack']
+    tags:
+      - { name: event_subscriber }
+
+  minsait_login_clave.auth_controller:
+    class: Drupal\minsait_login_clave\Controller\AuthController
+    arguments: []

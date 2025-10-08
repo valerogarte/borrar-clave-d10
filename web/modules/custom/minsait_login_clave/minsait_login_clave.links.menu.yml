@@ -1,0 +1,6 @@
+minsait_login_clave.settings_form:
+  title: Configure Cl@ve
+  description: Todas las opciones para el registro, logado y logout del usuario en Cl@ve.
+  parent: system.admin_config_system
+  route_name: minsait_login_clave.settings_form
+  weight: 10

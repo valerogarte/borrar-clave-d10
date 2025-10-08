@@ -1,0 +1,56 @@
+<form id="IndexPage" name="IndexPage" action="/login" method="POST">
+    <h1 class="colorAzul">Detalles del mensaje:</h1>
+
+    <div class="field-wrapper">
+        <h2>Level of assurance (LOA):</h2>
+        <select name="loa">
+            <option value="http://eidas.europa.eu/LoA/low" selected="selected">http://eidas.europa.eu/LoA/low
+            </option>
+            <option value="http://eidas.europa.eu/LoA/substantial">http://eidas.europa.eu/LoA/substantial
+            </option>
+            <option value="http://eidas.europa.eu/LoA/high">http://eidas.europa.eu/LoA/high</option>
+        </select>
+    </div>
+
+    <div class="field-wrapper">
+        <h2>Deshabilitar IdPs</h2>
+        <div class="flex-space">
+            <label class="checkbox-wrapper">
+                @Firma
+                <input type="checkbox" name="AFirmaIdP" id="AFirmaIdP" value="off"/>
+                <span class="checkmark"></span>
+            </label>
+
+            <label class="checkbox-wrapper">
+                Clave Permanente
+                <input type="checkbox" name="GISSIdP" id="GISSIdP" value="off"/>
+                <span class="checkmark"></span>
+            </label>
+
+            <label class="checkbox-wrapper">
+                eIDAS
+                <input type="checkbox" name="EIDASIdP" id="EIDASIdP" value="off"/>
+                <span class="checkmark"></span>
+            </label>
+
+            <label class="checkbox-wrapper">
+                CL@ve Móvil
+                <input type="checkbox" name="CLVMOVILIdP" id="CLVMOVILIdP" value="off"/>
+                <span class="checkmark"></span>
+            </label>
+        </div>
+    </div>
+
+    <div class="center">
+        <input type="hidden" name="SPType" value="public"/>
+        <label class="checkbox-wrapper">
+            Forzar autenticación
+            <input id="check-forceauthn" type="checkbox" name="forceauthn" value="true"/>
+            <span class="checkmark"></span>
+        </label>
+    </div>
+
+    <div class="center">
+        <div id="botonIniSesion"><input type="submit" id="InisesionBot" value="Iniciar sesión"/></div>
+    </div>
+</form>
