@@ -18,25 +18,20 @@ use SimpleSAML\Configuration;
 use SimpleSAML\Utils\Random;
 use SAML2\DOMDocumentFactory;
 use SAML2\XML\Chunk;
-use Drupal\minsait_login_clave\Controller\AuthController;
 
 class MinsaitLoginClaveController extends ControllerBase {
 
   protected $messenger;
   protected $logger;
-  protected $authController;
-
-  public function __construct(MessengerInterface $messenger, LoggerChannelFactoryInterface $loggerFactory, AuthController $authController) {
+  public function __construct(MessengerInterface $messenger, LoggerChannelFactoryInterface $loggerFactory) {
     $this->messenger = $messenger;
     $this->logger = $loggerFactory->get('minsait_login_clave');
-    $this->authController = $authController;
   }
 
   public static function create(ContainerInterface $container) {
     return new static(
       $container->get('messenger'),
-      $container->get('logger.factory'),
-      $container->get('minsait_login_clave.auth_controller')
+      $container->get('logger.factory')
     );
   }
 
@@ -48,7 +43,38 @@ class MinsaitLoginClaveController extends ControllerBase {
       throw new ServiceUnavailableHttpException(NULL, 'Error en la configuración de SAML. Clave no habilitada.');
     }
 
-    $this->authController->login($request);
+    $oldEnv = NULL;
+
+    try {
+      [$auth, $sspConfig, $oldEnv] = $this->bootstrapSimpleSaml($config);
+
+      if ($auth->isAuthenticated()) {
+        $destination = $this->extractDestination($request);
+        $query = [];
+
+        if ($destination && UrlHelper::isValid($destination, FALSE) && !UrlHelper::isExternal($destination)) {
+          $query['destination'] = $destination;
+        }
+
+        return $this->redirect('minsait_login_clave.clave_callback', [], [
+          'absolute' => TRUE,
+          'query' => $query,
+        ]);
+      }
+
+      $loginOptions = $this->buildLoginOptions($sspConfig, $config, $request);
+      $auth->requireAuth($loginOptions);
+    }
+    catch (\Throwable $e) {
+      $this->logger->error('Error iniciando autenticación con Cl@ve: @msg', ['@msg' => $e->getMessage()]);
+      $this->messenger->addError($this->t('No se pudo iniciar sesión con Cl@ve.'));
+      return $this->redirect('user.login');
+    }
+    finally {
+      $this->restoreSimpleSamlEnvironment($oldEnv ?? NULL);
+    }
+
+    return $this->redirect('<front>');
   }
 
   public function processSamlResponse(Request $request) {
