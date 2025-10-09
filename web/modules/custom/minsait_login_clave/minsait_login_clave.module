@@ -1,8 +1,8 @@
 <?php
 
+use Drupal\Component\Utility\Html;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Url;
-use Drupal\Core\Link;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\field\Entity\FieldStorageConfig;
 use Drupal\field\Entity\FieldConfig;
@@ -45,13 +45,35 @@ function minsait_login_clave_form_alter(&$form, FormStateInterface $form_state, 
   if (in_array($form_id, ['user_login_form', 'user_register_form'])) {
     $config = \Drupal::config('minsait_login_clave.settings');
     if ($config->get('enable_clave')) {
-      $url = Url::fromUserInput('/user/login/clave');
+      $url = Url::fromRoute('minsait_login_clave.clave_login', [], ['absolute' => FALSE]);
       $literal = $config->get('login_literal') ?? 'Acceso con Cl@ve';
-      $link = Link::fromTextAndUrl(t($literal), $url)->toString();
+      $loa = $config->get('loa') ?? 'http://eidas.europa.eu/LoA/low';
+      $forceauthn = !empty($config->get('force_login')) ? 'true' : 'false';
+      $current_request = \Drupal::request();
+      $destination = $current_request->query->get('destination') ?? $current_request->request->get('destination');
+
+      $hidden_fields = [
+        'loa' => $loa,
+        'SPType' => 'public',
+        'forceauthn' => $forceauthn,
+      ];
+
+      if (!empty($destination)) {
+        $hidden_fields['destination'] = $destination;
+      }
+
+      $hidden_inputs = array_map(function ($name, $value) {
+        return '<input type="hidden" name="' . Html::escape($name) . '" value="' . Html::escape($value) . '">';
+      }, array_keys($hidden_fields), $hidden_fields);
+
+      $form_markup = '<form class="minsait-login-clave-form" method="post" action="' . Html::escape($url->toString()) . '">';
+      $form_markup .= implode('', $hidden_inputs);
+      $form_markup .= '<button type="submit" class="button minsait-login-clave-button">' . Html::escape($literal) . '</button>';
+      $form_markup .= '</form>';
 
       $form['minsait_login_clave_link'] = [
         '#type' => 'markup',
-        '#markup' => '<div class="minsait-login-clave-link" style="margin-top: 20px;">' . $link . '</div>',
+        '#markup' => '<div class="minsait-login-clave-link" style="margin-top: 20px;">' . $form_markup . '</div>',
         '#weight' => 100,
       ];
     }
