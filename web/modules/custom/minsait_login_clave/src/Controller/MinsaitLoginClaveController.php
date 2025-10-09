@@ -14,6 +14,7 @@ use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use \Drupal\Component\Utility\Crypt;
 use SimpleSAML\Auth\Simple;
+use SimpleSAML\Auth\State;
 use SimpleSAML\Configuration;
 use SimpleSAML\Utils\Random;
 use SAML2\DOMDocumentFactory;
@@ -142,6 +143,69 @@ class MinsaitLoginClaveController extends ControllerBase {
     finally {
       $this->restoreSimpleSamlEnvironment($oldEnv ?? NULL);
     }
+  }
+
+  public function processSamlError(Request $request) {
+    $config = $this->config('minsait_login_clave.settings');
+
+    if (!$config->get('enable_clave')) {
+      $this->logger->error('Cl@ve no habilitada.');
+      $this->messenger->addError($this->t('Cl@ve no está habilitada.'));
+      return $this->redirect('user.login');
+    }
+
+    $oldEnv = NULL;
+
+    try {
+      [, , $oldEnv] = $this->bootstrapSimpleSaml($config);
+
+      $errorMessage = $this->t('Error desconocido devuelto por Cl@ve.');
+
+      foreach ($request->query->all() as $value) {
+        if (!is_string($value) || $value === '') {
+          continue;
+        }
+
+        try {
+          $state = State::loadExceptionState($value);
+        }
+        catch (\Throwable $stateException) {
+          $this->logger->warning('No se pudo interpretar el estado de error de Cl@ve: @msg', [
+            '@msg' => $stateException->getMessage(),
+          ]);
+          continue;
+        }
+
+        if (isset($state['\\SimpleSAML\\Auth\\State.exceptionData'])) {
+          $exceptionData = $state['\\SimpleSAML\\Auth\\State.exceptionData'];
+          if (is_object($exceptionData) && method_exists($exceptionData, 'getStatusMessage')) {
+            $message = $exceptionData->getStatusMessage();
+            if (!empty($message)) {
+              $errorMessage = $message;
+              break;
+            }
+          }
+        }
+      }
+
+      $this->messenger->addError($this->t('No se pudo completar el inicio de sesión con Cl@ve: @msg', [
+        '@msg' => $errorMessage,
+      ]));
+      $this->logger->error('Error devuelto por Cl@ve: @msg', [
+        '@msg' => $errorMessage,
+      ]);
+    }
+    catch (\Throwable $e) {
+      $this->logger->error('Error procesando el estado de error de Cl@ve: @msg', [
+        '@msg' => $e->getMessage(),
+      ]);
+      $this->messenger->addError($this->t('No se pudo completar el inicio de sesión con Cl@ve.'));
+    }
+    finally {
+      $this->restoreSimpleSamlEnvironment($oldEnv ?? NULL);
+    }
+
+    return $this->redirect('user.login');
   }
 
   /**
@@ -342,12 +406,7 @@ class MinsaitLoginClaveController extends ControllerBase {
       $query['destination'] = $destination;
     }
 
-    $returnTo = Url::fromRoute('minsait_login_clave.clave_callback', [], [
-      'absolute' => TRUE,
-      'query' => $query,
-    ])->toString();
-
-    $errorUrl = $returnTo."/error";
+    [$returnTo, $errorUrl] = $this->buildReturnUrls($sspConfig, $query);
 
     $options = [
       'saml:AuthnContextClassRef' => $config->get('loa') ?? 'http://eidas.europa.eu/LoA/low',
@@ -442,6 +501,26 @@ class MinsaitLoginClaveController extends ControllerBase {
     }
 
     return $extensions;
+  }
+
+  protected function buildReturnUrls(Configuration $sspConfig, array $query = []): array {
+    $base = rtrim($sspConfig->getString('ASSERTION_URL'), '/');
+
+    $callbackPath = Url::fromRoute('minsait_login_clave.clave_callback', [], [
+      'absolute' => FALSE,
+      'query' => $query,
+    ])->toString();
+    $callbackPath = '/' . ltrim($callbackPath, '/');
+    $callbackUrl = $base . $callbackPath;
+
+    $errorPath = Url::fromRoute('minsait_login_clave.clave_error', [], [
+      'absolute' => FALSE,
+      'query' => $query,
+    ])->toString();
+    $errorPath = '/' . ltrim($errorPath, '/');
+    $errorUrl = $base . $errorPath;
+
+    return [$callbackUrl, $errorUrl];
   }
 
   protected function extractUserAttributes(Simple $auth, Configuration $sspConfig) {
