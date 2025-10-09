@@ -6,6 +6,7 @@ use Drupal\Component\Utility\UrlHelper;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Messenger\MessengerInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
+use Drupal\Core\Routing\TrustedRedirectResponse;
 use Drupal\Core\Url;
 use Drupal\user\Entity\User;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -18,25 +19,20 @@ use SimpleSAML\Configuration;
 use SimpleSAML\Utils\Random;
 use SAML2\DOMDocumentFactory;
 use SAML2\XML\Chunk;
-use Drupal\minsait_login_clave\Controller\AuthController;
-
 class MinsaitLoginClaveController extends ControllerBase {
 
   protected $messenger;
   protected $logger;
-  protected $authController;
 
-  public function __construct(MessengerInterface $messenger, LoggerChannelFactoryInterface $loggerFactory, AuthController $authController) {
+  public function __construct(MessengerInterface $messenger, LoggerChannelFactoryInterface $loggerFactory) {
     $this->messenger = $messenger;
     $this->logger = $loggerFactory->get('minsait_login_clave');
-    $this->authController = $authController;
   }
 
   public static function create(ContainerInterface $container) {
     return new static(
       $container->get('messenger'),
-      $container->get('logger.factory'),
-      $container->get('minsait_login_clave.auth_controller')
+      $container->get('logger.factory')
     );
   }
 
@@ -48,7 +44,39 @@ class MinsaitLoginClaveController extends ControllerBase {
       throw new ServiceUnavailableHttpException(NULL, 'Error en la configuración de SAML. Clave no habilitada.');
     }
 
-    $this->authController->login($request);
+    $oldEnv = NULL;
+
+    try {
+      [$auth, $sspConfig, $oldEnv] = $this->bootstrapSimpleSaml($config);
+
+      if ($auth->isAuthenticated()) {
+        $query = [];
+        $destination = $this->extractDestination($request);
+        if ($destination) {
+          $query['destination'] = $destination;
+        }
+
+        $callbackUrl = Url::fromRoute('minsait_login_clave.clave_callback', [], [
+          'absolute' => TRUE,
+          'query' => $query,
+        ])->toString();
+
+        return new TrustedRedirectResponse($callbackUrl);
+      }
+
+      $loginOptions = $this->buildLoginOptions($sspConfig, $config, $request);
+      $auth->requireAuth($loginOptions);
+    }
+    catch (\Throwable $e) {
+      $this->logger->error('Error al iniciar el proceso de autenticación de Cl@ve: @msg', ['@msg' => $e->getMessage()]);
+      $this->messenger->addError($this->t('No se pudo iniciar el proceso de autenticación con Cl@ve.'));
+      return $this->redirect('user.login');
+    }
+    finally {
+      $this->restoreSimpleSamlEnvironment($oldEnv ?? NULL);
+    }
+
+    return NULL;
   }
 
   public function processSamlResponse(Request $request) {
@@ -323,15 +351,34 @@ class MinsaitLoginClaveController extends ControllerBase {
 
     $errorUrl = $returnTo;
 
+    $loa = $request->request->get('loa');
+    if (!is_string($loa) || $loa === '') {
+      $loa = (string) ($config->get('loa') ?? 'http://eidas.europa.eu/LoA/low');
+    }
+
+    $forceAuthnValue = $config->get('force_login');
+    $forceAuthnRequest = $request->request->get('forceauthn');
+    if ($forceAuthnRequest !== NULL) {
+      if (is_bool($forceAuthnRequest)) {
+        $forceAuthnValue = $forceAuthnRequest;
+      }
+      else {
+        $parsedForceAuthn = \filter_var($forceAuthnRequest, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        if ($parsedForceAuthn !== NULL) {
+          $forceAuthnValue = $parsedForceAuthn;
+        }
+      }
+    }
+
     $options = [
-      'saml:AuthnContextClassRef' => $config->get('loa') ?? 'http://eidas.europa.eu/LoA/low',
+      'saml:AuthnContextClassRef' => $loa,
       'saml:AuthnContextComparison' => 'minimum',
-      'ForceAuthn' => (bool) $config->get('force_login'),
+      'ForceAuthn' => (bool) $forceAuthnValue,
       'ReturnTo' => $returnTo,
       'ErrorURL' => $errorUrl,
     ];
 
-    $extensions = $this->buildSamlExtensions($sspConfig, $config);
+    $extensions = $this->buildSamlExtensions($sspConfig, $config, $request);
     if (!empty($extensions)) {
       $options['saml:Extensions'] = $extensions;
     }
@@ -339,7 +386,7 @@ class MinsaitLoginClaveController extends ControllerBase {
     return $options;
   }
 
-  protected function buildSamlExtensions(Configuration $sspConfig, $config) {
+  protected function buildSamlExtensions(Configuration $sspConfig, $config, Request $request) {
     $extensions = [];
     $attributesArray = [];
 
@@ -350,7 +397,12 @@ class MinsaitLoginClaveController extends ControllerBase {
 
     $dom = DOMDocumentFactory::create();
 
-    $ceType = $dom->createElementNS($nsEidas, 'eidas:SPType', 'public');
+    $spType = $request->request->get('SPType');
+    if (!is_string($spType) || $spType === '') {
+      $spType = 'public';
+    }
+
+    $ceType = $dom->createElementNS($nsEidas, 'eidas:SPType', $spType);
     $ceType->setAttribute('xmlns:eidas', $nsEidas);
     $extensions['eidas:SPType'] = new Chunk($ceType);
 
@@ -382,7 +434,12 @@ class MinsaitLoginClaveController extends ControllerBase {
 
     foreach ($idpConfigMap as $configKey => $attrKey) {
       $value = $config->get($configKey);
-      if ($value === 0 || $value === '0' || $value === FALSE) {
+      $requestToggle = $request->request->get($attrKey);
+      if ($requestToggle !== NULL) {
+        $value = $requestToggle;
+      }
+
+      if ($value === 0 || $value === '0' || $value === FALSE || $value === 'off') {
         $name = $idpAttrs[$attrKey . '.name'] ?? NULL;
         $nameFormat = $idpAttrs[$attrKey . '.nameFormat'] ?? 'urn:oasis:names:tc:SAML:2.0:attrname-format:uri';
         $uri = $idpAttrs[$attrKey . '.uri'] ?? NULL;
