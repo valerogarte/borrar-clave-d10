@@ -18,25 +18,20 @@ use SimpleSAML\Configuration;
 use SimpleSAML\Utils\Random;
 use SAML2\DOMDocumentFactory;
 use SAML2\XML\Chunk;
-use Drupal\minsait_login_clave\Controller\AuthController;
 
 class MinsaitLoginClaveController extends ControllerBase {
 
   protected $messenger;
   protected $logger;
-  protected $authController;
-
-  public function __construct(MessengerInterface $messenger, LoggerChannelFactoryInterface $loggerFactory, AuthController $authController) {
+  public function __construct(MessengerInterface $messenger, LoggerChannelFactoryInterface $loggerFactory) {
     $this->messenger = $messenger;
     $this->logger = $loggerFactory->get('minsait_login_clave');
-    $this->authController = $authController;
   }
 
   public static function create(ContainerInterface $container) {
     return new static(
       $container->get('messenger'),
-      $container->get('logger.factory'),
-      $container->get('minsait_login_clave.auth_controller')
+      $container->get('logger.factory')
     );
   }
 
@@ -48,7 +43,15 @@ class MinsaitLoginClaveController extends ControllerBase {
       throw new ServiceUnavailableHttpException(NULL, 'Error en la configuración de SAML. Clave no habilitada.');
     }
 
-    $this->authController->login($request);
+    $query = [];
+    $destination = $this->extractDestination($request);
+    if ($destination) {
+      $query['destination'] = $destination;
+    }
+
+    return $this->redirect('minsait_login_clave.clave_callback', [], [
+      'query' => $query,
+    ]);
   }
 
   public function processSamlResponse(Request $request) {
@@ -63,10 +66,10 @@ class MinsaitLoginClaveController extends ControllerBase {
     $oldEnv = NULL;
 
     try {
-      [$auth, $sspConfig, $oldEnv] = $this->bootstrapSimpleSaml($config);
+      [$auth, $sspConfig, $oldEnv, $spId] = $this->bootstrapSimpleSaml($config);
 
       if (!$auth->isAuthenticated()) {
-        $loginOptions = $this->buildLoginOptions($sspConfig, $config, $request);
+        $loginOptions = $this->buildLoginOptions($sspConfig, $config, $request, $spId);
         $auth->requireAuth($loginOptions);
       }
 
@@ -260,7 +263,7 @@ class MinsaitLoginClaveController extends ControllerBase {
 
     $auth = new Simple($spId);
 
-    return [$auth, $sspConfig, $oldEnv];
+    return [$auth, $sspConfig, $oldEnv, $spId];
   }
 
   protected function restoreSimpleSamlEnvironment($oldEnv) {
@@ -309,7 +312,7 @@ class MinsaitLoginClaveController extends ControllerBase {
     ];
   }
 
-  protected function buildLoginOptions(Configuration $sspConfig, $config, Request $request) {
+  protected function buildLoginOptions(Configuration $sspConfig, $config, Request $request, string $spId) {
     $query = [];
     $destination = $this->extractDestination($request);
     if ($destination) {
@@ -329,6 +332,7 @@ class MinsaitLoginClaveController extends ControllerBase {
       'ForceAuthn' => (bool) $config->get('force_login'),
       'ReturnTo' => $returnTo,
       'ErrorURL' => $errorUrl,
+      'saml:sp:AuthId' => $spId,
     ];
 
     $extensions = $this->buildSamlExtensions($sspConfig, $config);
