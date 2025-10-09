@@ -347,7 +347,7 @@ class MinsaitLoginClaveController extends ControllerBase {
       'query' => $query,
     ])->toString();
 
-    $errorUrl = $returnTo;
+    $errorUrl = $returnTo."/error";
 
     $options = [
       'saml:AuthnContextClassRef' => $config->get('loa') ?? 'http://eidas.europa.eu/LoA/low',

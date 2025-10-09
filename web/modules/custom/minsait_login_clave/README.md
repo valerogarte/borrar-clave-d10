@@ -55,11 +55,11 @@
 Importante, estos comandos son para un arranque inicial, posteriormente se deberá configurar con los datos finales.
 
 #### Configuración
-`cp -R paquete-integracion-clave/simplesamlphp/metadata vendor/simplesamlphp/simplesamlphp/`
-`cp -R paquete-integracion-clave/simplesamlphp/cert vendor/simplesamlphp/simplesamlphp/`
-`cp -R paquete-integracion-clave/simplesamlphp/config vendor/simplesamlphp/simplesamlphp/`
+`rsync -av --delete /home/valerogarte/proyectos/kitclave/kit/simplesamlphp/metadata/   /home/valerogarte/proyectos/drupal10clave/vendor/simplesamlphp/simplesamlphp/metadata/`
+`rsync -av --delete /home/valerogarte/proyectos/kitclave/kit/simplesamlphp/cert/   /home/valerogarte/proyectos/drupal10clave/vendor/simplesamlphp/simplesamlphp/cert/`
+`rsync -av --delete /home/valerogarte/proyectos/kitclave/kit/simplesamlphp/config/   /home/valerogarte/proyectos/drupal10clave/vendor/simplesamlphp/simplesamlphp/config/`
 #### Módulos
-`cp -R paquete-integracion-clave/simplesamlphp/modules/* vendor/simplesamlphp/simplesamlphp/modules/`
+`rsync -av --delete /home/valerogarte/proyectos/kitclave/kit/simplesamlphp/modules/   /home/valerogarte/proyectos/drupal10clave/vendor/simplesamlphp/simplesamlphp/modules/`
 
 ### Test
 Revisa que todo funcione correctamente con datos demo.
