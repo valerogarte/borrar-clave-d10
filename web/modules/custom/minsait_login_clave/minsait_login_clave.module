@@ -17,18 +17,30 @@ define('FIELD_NUMERO_DOCUMENTO', 'field_numero_documento');
 /**
  * Implements hook_entity_presave().
  */
-function minsait_login_clave_user_presave(AccountInterface $account) {
+function minsait_login_clave_entity_presave(EntityInterface $entity) {
+  // Solo procesar entidades de usuario.
+  if ($entity->getEntityTypeId() !== 'user') {
+    return;
+  }
+
+  /** @var \Drupal\user\Entity\User $entity */
   $config = \Drupal::config('minsait_login_clave.settings');
-  $numero_documento = $account->get($config->get('id_field'))->value;
+  $id_field = $config->get('id_field');
+  
+  if (!$id_field || !$entity->hasField($id_field)) {
+    return;
+  }
+
+  $numero_documento = $entity->get($id_field)->value;
 
   if ($numero_documento) {
     $query = \Drupal::entityQuery('user')
       ->accessCheck(FALSE)
-      ->condition($config->get('id_field'), $numero_documento);
+      ->condition($id_field, $numero_documento);
 
     // Si es una edición, excluye el usuario actual.
-    if (!$account->isNew()) {
-      $query->condition('uid', $account->id(), '<>');
+    if (!$entity->isNew()) {
+      $query->condition('uid', $entity->id(), '<>');
     }
 
     $existing_uids = $query->execute();
@@ -48,21 +60,34 @@ function minsait_login_clave_form_alter(&$form, FormStateInterface $form_state, 
     if ($config->get('enable_clave')) {
       $url = Url::fromUserInput('/user/login/clave');
       $literal = $config->get('login_literal') ?? 'Acceso con Cl@ve';
-      $action = Html::escape($url->toString());
       $button_text = Html::escape((string) t($literal));
 
-      $form_html = <<<HTML
-<div class="minsait-login-clave-link" style="margin-top: 20px;">
-  <form class="minsait-login-clave-form" action="{$action}" method="post">
-    <input type="hidden" name="loa" value="http://eidas.europa.eu/LoA/low" />
-    <input type="hidden" name="SPType" value="public" />
-    <input type="hidden" name="forceauthn" value="true" />
-    <button type="submit">{$button_text}</button>
-  </form>
-</div>
-HTML;
+      // Crear contenedor para el enlace de Cl@ve
+      $form['clave_login'] = [
+        '#type' => 'container',
+        '#attributes' => [
+          'class' => ['minsait-login-clave-link'],
+          'style' => 'margin-top: 20px;',
+        ],
+        '#weight' => 100,
+      ];
 
-      $form['#suffix'] = ($form['#suffix'] ?? '') . Markup::create($form_html);
+      // Crear el botón que enviará el formulario de Cl@ve
+      $form['clave_login']['submit'] = [
+        '#type' => 'button',
+        '#value' => $button_text,
+        '#attributes' => [
+          'class' => ['button', 'minsait-clave-button'],
+          'onclick' => 'return submitClaveForm(this);',
+          'data-action' => $url->toString(),
+          'data-loa' => 'http://eidas.europa.eu/LoA/low',
+          'data-sptype' => 'public',
+          'data-forceauthn' => 'true',
+        ],
+        '#attached' => [
+          'library' => ['minsait_login_clave/clave_submit'],
+        ],
+      ];
     }
   }
   
@@ -100,9 +125,12 @@ function minsait_login_clave_user_form_validate(array &$form, FormStateInterface
         ->condition($config->get('id_field'), $numero_documento);
   
       // Exclude the current user if editing.
-      $uid = $form_state->getFormObject()->getEntity()->id();
-      if ($uid) {
-        $query->condition('uid', $uid, '<>');
+      $form_object = $form_state->getFormObject();
+      if (method_exists($form_object, 'getEntity')) {
+        $uid = $form_object->getEntity()->id();
+        if ($uid) {
+          $query->condition('uid', $uid, '<>');
+        }
       }
   
       $existing_uids = $query->execute();

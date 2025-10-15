@@ -1,1 +1,6 @@
 # Custom module library for general purposes.
+clave_submit:
+  js:
+    js/clave-submit.js: {}
+  dependencies:
+    - core/drupal
