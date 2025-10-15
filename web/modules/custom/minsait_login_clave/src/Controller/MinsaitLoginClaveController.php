@@ -16,6 +16,7 @@ use \Drupal\Component\Utility\Crypt;
 use SimpleSAML\Auth\Simple;
 use SimpleSAML\Auth\State;
 use SimpleSAML\Configuration;
+use SimpleSAML\Session;
 use SimpleSAML\Utils\Random;
 use SAML2\DOMDocumentFactory;
 use SAML2\XML\Chunk;
@@ -348,6 +349,8 @@ class MinsaitLoginClaveController extends ControllerBase {
       throw new \RuntimeException('No se pudo determinar el SPID para Cl@ve.');
     }
 
+    $this->prepareSimpleSamlSession($spId);
+
     $auth = new Simple($spId);
 
     return [$auth, $sspConfig, $oldEnv];
@@ -397,6 +400,20 @@ class MinsaitLoginClaveController extends ControllerBase {
       'lib_autoload' => $basePath . '/lib/_autoload.php',
       'autoloads' => $autoloads,
     ];
+  }
+
+  protected function prepareSimpleSamlSession(string $spId): void {
+    try {
+      $session = Session::getSessionFromRequest();
+      $session->cleanup();
+      $session->deleteData('string', 'spid');
+      $session->setData('string', 'spid', $spId);
+    }
+    catch (\Throwable $exception) {
+      $this->logger->warning('No se pudo preparar la sesión de SimpleSAMLphp: @msg', [
+        '@msg' => $exception->getMessage(),
+      ]);
+    }
   }
 
   protected function buildLoginOptions(Configuration $sspConfig, $config, Request $request) {
