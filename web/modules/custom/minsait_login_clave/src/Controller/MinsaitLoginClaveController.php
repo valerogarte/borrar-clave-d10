@@ -49,7 +49,7 @@ class MinsaitLoginClaveController extends ControllerBase {
     $oldEnv = NULL;
 
     try {
-      [$auth, $sspConfig, $oldEnv, $sspSession] = $this->bootstrapSimpleSaml($config);
+      [$auth, $sspConfig, $oldEnv, $sspSession] = $this->bootstrapSimpleSaml($config, $request);
 
       $this->rememberSimpleSamlSession($request, $sspSession);
 
@@ -94,7 +94,7 @@ class MinsaitLoginClaveController extends ControllerBase {
     $oldEnv = NULL;
 
     try {
-      [$auth, $sspConfig, $oldEnv, $sspSession] = $this->bootstrapSimpleSaml($config, FALSE);
+      [$auth, $sspConfig, $oldEnv, $sspSession] = $this->bootstrapSimpleSaml($config, $request, FALSE);
 
       if ($auth->isAuthenticated()) {
         $this->confirmSimpleSamlSession($request, $sspSession);
@@ -165,7 +165,7 @@ class MinsaitLoginClaveController extends ControllerBase {
     $oldEnv = NULL;
 
     try {
-      [, , $oldEnv, $_sspSession] = $this->bootstrapSimpleSaml($config);
+      [, , $oldEnv, $_sspSession] = $this->bootstrapSimpleSaml($config, $request);
 
       $errorMessage = $this->t('Error desconocido devuelto por Cl@ve.');
 
@@ -322,7 +322,7 @@ class MinsaitLoginClaveController extends ControllerBase {
     return $newUser;
   }
 
-  protected function bootstrapSimpleSaml($config, bool $prepareSession = TRUE) {
+  protected function bootstrapSimpleSaml($config, Request $request, bool $prepareSession = TRUE) {
     $paths = $this->locateSimpleSamlPaths();
 
     foreach ($paths['autoloads'] as $autoload) {
@@ -341,22 +341,18 @@ class MinsaitLoginClaveController extends ControllerBase {
     putenv('SIMPLESAMLPHP_CONFIG_DIR=' . $paths['config_dir']);
 
     $sspConfig = Configuration::getConfig('config.php');
-    $spId = $config->get('sp_id');
+    $sspSession = $this->loadSimpleSamlSession();
 
-    if (is_array($spId)) {
-      $spId = reset($spId);
+    $spId = $this->determineSpId($sspConfig, $config, $request, $sspSession, $prepareSession);
+
+    if ($prepareSession && $sspSession instanceof Session) {
+      $this->storeSpIdInSession($sspSession, $spId);
     }
-
-    $spId = trim((string) $spId);
-    if ($spId === '') {
-      $spId = (string) $sspConfig->getString('DEFAULT_SPID');
+    elseif ($prepareSession) {
+      $this->logger->warning('No se pudo acceder a la sesión de SimpleSAMLphp para guardar el SPID seleccionado (@spid).', [
+        '@spid' => $spId,
+      ]);
     }
-
-    if ($spId === '') {
-      throw new \RuntimeException('No se pudo determinar el SPID para Cl@ve.');
-    }
-
-    $sspSession = $prepareSession ? $this->prepareSimpleSamlSession($spId) : $this->loadSimpleSamlSession();
 
     $auth = new Simple($spId);
 
@@ -409,23 +405,6 @@ class MinsaitLoginClaveController extends ControllerBase {
     ];
   }
 
-  protected function prepareSimpleSamlSession(string $spId): ?Session {
-    try {
-      $session = Session::getSessionFromRequest();
-      $session->cleanup();
-      $session->deleteData('string', 'spid');
-      $session->setData('string', 'spid', $spId);
-      return $session;
-    }
-    catch (\Throwable $exception) {
-      $this->logger->warning('No se pudo preparar la sesión de SimpleSAMLphp: @msg', [
-        '@msg' => $exception->getMessage(),
-      ]);
-    }
-
-    return NULL;
-  }
-
   protected function loadSimpleSamlSession(): ?Session {
     try {
       return Session::getSessionFromRequest();
@@ -436,6 +415,61 @@ class MinsaitLoginClaveController extends ControllerBase {
       ]);
       return NULL;
     }
+  }
+
+  protected function storeSpIdInSession(Session $session, string $spId): void {
+    try {
+      $session->cleanup();
+      $session->deleteData('string', 'spid');
+      $session->setData('string', 'spid', $spId);
+    }
+    catch (\Throwable $exception) {
+      $this->logger->warning('No se pudo guardar el SPID (@spid) en la sesión de SimpleSAMLphp: @msg', [
+        '@spid' => $spId,
+        '@msg' => $exception->getMessage(),
+      ]);
+    }
+  }
+
+  protected function determineSpId(Configuration $sspConfig, $config, Request $request, ?Session $session, bool $allowQuerySelection): string {
+    $configuredSpId = $config->get('sp_id');
+    if (is_array($configuredSpId)) {
+      $configuredSpId = reset($configuredSpId);
+    }
+    $configuredSpId = trim((string) $configuredSpId);
+
+    $defaultSpId = '';
+    try {
+      $defaultSpId = trim((string) $sspConfig->getString('DEFAULT_SPID'));
+    }
+    catch (\Throwable $exception) {
+      $this->logger->warning('No se pudo recuperar DEFAULT_SPID de SimpleSAMLphp: @msg', [
+        '@msg' => $exception->getMessage(),
+      ]);
+    }
+
+    $spId = $configuredSpId !== '' ? $configuredSpId : $defaultSpId;
+
+    if ($allowQuerySelection) {
+      $requestedSpId = $request->query->get('source');
+      if (is_string($requestedSpId) && $requestedSpId !== '') {
+        $spId = $requestedSpId;
+      }
+    }
+    else {
+      if ($session instanceof Session) {
+        $storedSpId = $session->getData('string', 'spid');
+        if (is_string($storedSpId) && $storedSpId !== '') {
+          $spId = $storedSpId;
+        }
+      }
+    }
+
+    if ($spId === '') {
+      throw new \RuntimeException('No se pudo determinar el SPID para Cl@ve.');
+    }
+
+    return $spId;
   }
 
   protected function buildLoginOptions(Configuration $sspConfig, $config, Request $request) {
