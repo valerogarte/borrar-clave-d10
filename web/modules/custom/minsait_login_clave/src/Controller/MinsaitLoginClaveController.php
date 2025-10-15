@@ -9,8 +9,9 @@ use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Url;
 use Drupal\user\Entity\User;
 use Symfony\Component\DependencyInjection\ContainerInterface;
-use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Cookie;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Session\SessionInterface;
 use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use \Drupal\Component\Utility\Crypt;
 use SimpleSAML\Auth\Simple;
@@ -48,7 +49,9 @@ class MinsaitLoginClaveController extends ControllerBase {
     $oldEnv = NULL;
 
     try {
-      [$auth, $sspConfig, $oldEnv] = $this->bootstrapSimpleSaml($config);
+      [$auth, $sspConfig, $oldEnv, $sspSession] = $this->bootstrapSimpleSaml($config);
+
+      $this->rememberSimpleSamlSession($request, $sspSession);
 
       if ($auth->isAuthenticated()) {
         $destination = $this->extractDestination($request);
@@ -91,9 +94,13 @@ class MinsaitLoginClaveController extends ControllerBase {
     $oldEnv = NULL;
 
     try {
-      [$auth, $sspConfig, $oldEnv] = $this->bootstrapSimpleSaml($config);
+      [$auth, $sspConfig, $oldEnv, $sspSession] = $this->bootstrapSimpleSaml($config, FALSE);
 
-      if (!$auth->isAuthenticated()) {
+      if ($auth->isAuthenticated()) {
+        $this->confirmSimpleSamlSession($request, $sspSession);
+      }
+      else {
+        $this->rememberSimpleSamlSession($request, $sspSession);
         $loginOptions = $this->buildLoginOptions($sspConfig, $config, $request);
         $auth->requireAuth($loginOptions);
       }
@@ -158,7 +165,7 @@ class MinsaitLoginClaveController extends ControllerBase {
     $oldEnv = NULL;
 
     try {
-      [, , $oldEnv] = $this->bootstrapSimpleSaml($config);
+      [, , $oldEnv, $_sspSession] = $this->bootstrapSimpleSaml($config);
 
       $errorMessage = $this->t('Error desconocido devuelto por Cl@ve.');
 
@@ -315,7 +322,7 @@ class MinsaitLoginClaveController extends ControllerBase {
     return $newUser;
   }
 
-  protected function bootstrapSimpleSaml($config) {
+  protected function bootstrapSimpleSaml($config, bool $prepareSession = TRUE) {
     $paths = $this->locateSimpleSamlPaths();
 
     foreach ($paths['autoloads'] as $autoload) {
@@ -349,11 +356,11 @@ class MinsaitLoginClaveController extends ControllerBase {
       throw new \RuntimeException('No se pudo determinar el SPID para Cl@ve.');
     }
 
-    $this->prepareSimpleSamlSession($spId);
+    $sspSession = $prepareSession ? $this->prepareSimpleSamlSession($spId) : $this->loadSimpleSamlSession();
 
     $auth = new Simple($spId);
 
-    return [$auth, $sspConfig, $oldEnv];
+    return [$auth, $sspConfig, $oldEnv, $sspSession];
   }
 
   protected function restoreSimpleSamlEnvironment($oldEnv) {
@@ -402,17 +409,32 @@ class MinsaitLoginClaveController extends ControllerBase {
     ];
   }
 
-  protected function prepareSimpleSamlSession(string $spId): void {
+  protected function prepareSimpleSamlSession(string $spId): ?Session {
     try {
       $session = Session::getSessionFromRequest();
       $session->cleanup();
       $session->deleteData('string', 'spid');
       $session->setData('string', 'spid', $spId);
+      return $session;
     }
     catch (\Throwable $exception) {
       $this->logger->warning('No se pudo preparar la sesión de SimpleSAMLphp: @msg', [
         '@msg' => $exception->getMessage(),
       ]);
+    }
+
+    return NULL;
+  }
+
+  protected function loadSimpleSamlSession(): ?Session {
+    try {
+      return Session::getSessionFromRequest();
+    }
+    catch (\Throwable $exception) {
+      $this->logger->warning('No se pudo obtener la sesión de SimpleSAMLphp: @msg', [
+        '@msg' => $exception->getMessage(),
+      ]);
+      return NULL;
     }
   }
 
@@ -518,6 +540,76 @@ class MinsaitLoginClaveController extends ControllerBase {
     }
 
     return $extensions;
+  }
+
+  protected function rememberSimpleSamlSession(Request $request, ?Session $session): void {
+    if (!$session instanceof Session) {
+      return;
+    }
+
+    $sessionId = $session->getSessionId();
+    if ($sessionId === NULL || $sessionId === '') {
+      return;
+    }
+
+    $drupalSession = $this->getDrupalSession($request);
+    if (!$drupalSession instanceof SessionInterface) {
+      return;
+    }
+
+    $drupalSession->set('minsait_login_clave.simple_saml_session_id', $sessionId);
+  }
+
+  protected function confirmSimpleSamlSession(Request $request, ?Session $session): void {
+    $drupalSession = $this->getDrupalSession($request);
+    if (!$drupalSession instanceof SessionInterface) {
+      return;
+    }
+
+    $expectedSessionId = $drupalSession->get('minsait_login_clave.simple_saml_session_id');
+    $drupalSession->remove('minsait_login_clave.simple_saml_session_id');
+
+    if (!is_string($expectedSessionId) || $expectedSessionId === '') {
+      return;
+    }
+
+    if (!$session instanceof Session) {
+      $this->logger->warning('No se pudo verificar la sesión de SimpleSAMLphp esperada (@expected) porque no se recibió ninguna sesión.', [
+        '@expected' => $expectedSessionId,
+      ]);
+      return;
+    }
+
+    $currentSessionId = $session->getSessionId();
+    if (!is_string($currentSessionId) || $currentSessionId === '') {
+      $this->logger->warning('No se pudo verificar la sesión de SimpleSAMLphp esperada (@expected) porque la sesión actual no tiene identificador.', [
+        '@expected' => $expectedSessionId,
+      ]);
+      return;
+    }
+
+    if (!hash_equals($expectedSessionId, $currentSessionId)) {
+      $this->logger->warning('La sesión de SimpleSAMLphp esperada (@expected) no coincide con la sesión recibida (@current).', [
+        '@expected' => $expectedSessionId,
+        '@current' => $currentSessionId,
+      ]);
+    }
+  }
+
+  protected function getDrupalSession(Request $request): ?SessionInterface {
+    if (!$request->hasSession()) {
+      return NULL;
+    }
+
+    try {
+      return $request->getSession();
+    }
+    catch (\Throwable $exception) {
+      $this->logger->warning('No se pudo acceder a la sesión de Drupal: @msg', [
+        '@msg' => $exception->getMessage(),
+      ]);
+      return NULL;
+    }
   }
 
   protected function buildReturnUrls(Configuration $sspConfig, array $query = []): array {
