@@ -1,8 +1,9 @@
 <?php
 
+use Drupal\Component\Utility\Html;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Render\Markup;
 use Drupal\Core\Url;
-use Drupal\Core\Link;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\field\Entity\FieldStorageConfig;
 use Drupal\field\Entity\FieldConfig;
@@ -47,13 +48,21 @@ function minsait_login_clave_form_alter(&$form, FormStateInterface $form_state, 
     if ($config->get('enable_clave')) {
       $url = Url::fromUserInput('/user/login/clave');
       $literal = $config->get('login_literal') ?? 'Acceso con Cl@ve';
-      $link = Link::fromTextAndUrl(t($literal), $url)->toString();
+      $action = Html::escape($url->toString());
+      $button_text = Html::escape((string) t($literal));
 
-      $form['minsait_login_clave_link'] = [
-        '#type' => 'markup',
-        '#markup' => '<div class="minsait-login-clave-link" style="margin-top: 20px;">' . $link . '</div>',
-        '#weight' => 100,
-      ];
+      $form_html = <<<HTML
+<div class="minsait-login-clave-link" style="margin-top: 20px;">
+  <form class="minsait-login-clave-form" action="{$action}" method="post">
+    <input type="hidden" name="loa" value="http://eidas.europa.eu/LoA/low" />
+    <input type="hidden" name="SPType" value="public" />
+    <input type="hidden" name="forceauthn" value="true" />
+    <button type="submit">{$button_text}</button>
+  </form>
+</div>
+HTML;
+
+      $form['#suffix'] = ($form['#suffix'] ?? '') . Markup::create($form_html);
     }
   }
   
