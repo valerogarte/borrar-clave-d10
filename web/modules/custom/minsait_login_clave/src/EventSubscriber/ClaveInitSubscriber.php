@@ -34,6 +34,7 @@ class ClaveInitSubscriber implements EventSubscriberInterface {
     $excluded_routes = [
       'minsait_login_clave.clave_callback',
       'minsait_login_clave.clave_login',
+      'minsait_login_clave.clave_logout',
     ];
     if (in_array($current_route, $excluded_routes)) {
       return;

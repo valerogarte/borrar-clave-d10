@@ -14,6 +14,7 @@ function submitClaveForm(button) {
   const loa = button.getAttribute('data-loa');
   const sptype = button.getAttribute('data-sptype');
   const forceauthn = button.getAttribute('data-forceauthn');
+  const destination = button.getAttribute('data-destination');
   
   // Crear un formulario dinámico
   const form = document.createElement('form');
@@ -26,6 +27,10 @@ function submitClaveForm(button) {
     { name: 'SPType', value: sptype },
     { name: 'forceauthn', value: forceauthn }
   ];
+
+  if (destination) {
+    fields.push({ name: 'destination', value: destination });
+  }
   
   fields.forEach(function(field) {
     const input = document.createElement('input');

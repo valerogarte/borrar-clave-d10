@@ -30,7 +30,7 @@ class SettingsForm extends ConfigFormBase {
    */
   public function buildForm(array $form, FormStateInterface $form_state) {
     $config = $this->config('minsait_login_clave.settings');
-    $kitClavePath = DRUPAL_ROOT . '/../vendor/simplesamlphp';
+    $simpleSamlPath = DRUPAL_ROOT . '/../vendor/simplesamlphp/simplesamlphp';
 
     // Crear vertical tabs.
     $form['tabs'] = [
@@ -47,22 +47,22 @@ class SettingsForm extends ConfigFormBase {
       '#open' => TRUE,
     ];
 
-    if (!is_dir($kitClavePath)) {
+    if (!is_dir($simpleSamlPath)) {
       $form['verificaciones']['saml_status'] = [
         '#type' => 'markup',
         '#markup' => '<div style="border:1px solid #ccc; padding:8px; margin-bottom:20px;">❌ '
-          . $this->t('La carpeta del Kit Cl@ve no existe en @path.', ['@path' => $kitClavePath])
+          . $this->t('La carpeta de SimpleSAMLphp no existe en @path.', ['@path' => $simpleSamlPath])
           . '</div>',
       ];
     }
     else {
-      if (is_readable($kitClavePath)) {
+      if (is_readable($simpleSamlPath)) {
         $icon = '✅';
-        $message = $this->t('@icon El Kit Cl@ve está instalado y con permisos de lectura.', ['@icon' => $icon]);
+        $message = $this->t('@icon SimpleSAMLphp está instalado y con permisos de lectura.', ['@icon' => $icon]);
       }
       else {
         $icon = '⚠';
-        $message = $this->t('@icon La carpeta del Kit Cl@ve existe pero sin permisos de lectura.', ['@icon' => $icon]);
+        $message = $this->t('@icon La carpeta de SimpleSAMLphp existe pero sin permisos de lectura.', ['@icon' => $icon]);
       }
       $form['verificaciones']['saml_status'] = [
         '#type' => 'markup',
@@ -72,15 +72,20 @@ class SettingsForm extends ConfigFormBase {
     }
 
     $checks = [
-      $kitClavePath . '/vendor/autoload.php' => $this->t('Autoloader principal del kit (vendor/autoload.php).'),
-      $kitClavePath . '/simplesamlphp/vendor/autoload.php' => $this->t('Autoloader de SimpleSAMLphp (simplesamlphp/vendor/autoload.php).'),
-      $kitClavePath . '/simplesamlphp/lib/_autoload.php' => $this->t('Autoloader principal de SimpleSAMLphp (simplesamlphp/lib/_autoload.php).'),
-      $kitClavePath . '/simplesamlphp/config/config.php' => $this->t('Fichero de configuración (simplesamlphp/config/config.php).'),
+      $simpleSamlPath . '/lib/_autoload.php' => $this->t('Autoloader principal de SimpleSAMLphp (lib/_autoload.php).'),
+      $simpleSamlPath . '/config/config.php' => $this->t('Fichero de configuración de SimpleSAMLphp (config/config.php).'),
+      $simpleSamlPath . '/metadata/saml20-sp-remote.php' => $this->t('Metadatos de SP remotos (metadata/saml20-sp-remote.php).'),
+      $simpleSamlPath . '/modules/clave' => $this->t('Módulo Cl@ve disponible (modules/clave).'),
     ];
 
     foreach ($checks as $path => $description) {
+      $exists = file_exists($path);
+      if (!$exists && is_dir($path)) {
+        $exists = TRUE;
+      }
+
       $message = '❌ ' . $this->t('No se encontró @desc en @path.', ['@desc' => $description, '@path' => $path]);
-      if (file_exists($path)) {
+      if ($exists) {
         if (is_readable($path)) {
           $message = $this->t('✅ @desc localizado y con permisos de lectura.', ['@desc' => $description]);
         }
@@ -121,7 +126,7 @@ class SettingsForm extends ConfigFormBase {
       '#type' => 'textfield',
       '#title' => $this->t('Identificador del Proveedor de Servicio (SPID)'),
       '#default_value' => $config->get('sp_id') ?? '21114293V_E04975701',
-      '#description' => $this->t('Identificador del proveedor de servicio configurado en el kit Cl@ve.'),
+      '#description' => $this->t('Identificador del proveedor de servicio configurado en SimpleSAMLphp.'),
       '#required' => TRUE,
     ];
 

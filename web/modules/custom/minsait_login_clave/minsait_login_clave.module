@@ -1,18 +1,100 @@
 <?php
 
 use Drupal\Component\Utility\Html;
-use Drupal\Core\Form\FormStateInterface;
-use Drupal\Core\Render\Markup;
-use Drupal\Core\Url;
-use Drupal\Core\Session\AccountInterface;
-use Drupal\field\Entity\FieldStorageConfig;
-use Drupal\field\Entity\FieldConfig;
 use Drupal\Core\Entity\Entity\EntityFormDisplay;
 use Drupal\Core\Entity\Entity\EntityViewDisplay;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityStorageException;
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Render\Markup;
+use Drupal\Core\Session\AccountInterface;
+use Drupal\Core\Url;
+use Drupal\field\Entity\FieldConfig;
+use Drupal\field\Entity\FieldStorageConfig;
+use SimpleSAML\Configuration;
+use SimpleSAML\Session;
 
 define('FIELD_NUMERO_DOCUMENTO', 'field_numero_documento');
+
+/**
+ * Initializes the SimpleSAMLphp environment for the Cl@ve home step.
+ *
+ * @param \Drupal\Core\Config\Config $config
+ *   Module configuration.
+ *
+ * @return array|null
+ *   Returns basic information about the initialized SAML environment or NULL
+ *   if the initialization failed.
+ */
+function minsait_login_clave_initialize_home($config) {
+  static $initialized;
+
+  if ($initialized !== NULL) {
+    return $initialized;
+  }
+
+  $logger = \Drupal::logger('minsait_login_clave');
+
+  $vendorBasePath = DRUPAL_ROOT . '/../vendor';
+  $sspBasePath = $vendorBasePath . '/simplesamlphp/simplesamlphp';
+  $sspConfigDir = $sspBasePath . '/config';
+
+  if (!is_dir($vendorBasePath) || !is_dir($sspBasePath) || !is_dir($sspConfigDir)) {
+    $logger->error('No se encontró la instalación de SimpleSAMLphp en @path.', ['@path' => $sspBasePath]);
+    $initialized = NULL;
+    return $initialized;
+  }
+
+  $sspLibAutoload = $sspBasePath . '/lib/_autoload.php';
+  if (!file_exists($sspLibAutoload)) {
+    $logger->error('No se pudo cargar el autoloader principal de SimpleSAMLphp.');
+    $initialized = NULL;
+    return $initialized;
+  }
+
+  require_once $sspLibAutoload;
+
+  putenv('SIMPLESAMLPHP_CONFIG_DIR=' . $sspConfigDir);
+
+  try {
+    $sspConfig = Configuration::getConfig('config.php');
+  }
+  catch (\Throwable $throwable) {
+    $logger->error('Error al cargar la configuración de SimpleSAMLphp: @msg', ['@msg' => $throwable->getMessage()]);
+    $initialized = NULL;
+    return $initialized;
+  }
+
+  $session = Session::getSessionFromRequest();
+  $session->cleanup();
+  $session->deleteData('string', 'spid');
+
+  $request = \Drupal::request();
+  $spId = $config->get('sp_id');
+  if (is_array($spId)) {
+    $spId = reset($spId);
+  }
+  $spId = trim((string) $spId);
+
+  if ($request && $request->query->has('source')) {
+    $spId = (string) $request->query->get('source');
+  }
+
+  if ($spId === '') {
+    $spId = $sspConfig->getString('DEFAULT_SPID', '');
+  }
+
+  if ($spId !== '') {
+    $session->setData('string', 'spid', $spId);
+  }
+
+  $initialized = [
+    'spid' => $spId,
+    'assertion_url' => $sspConfig->getString('ASSERTION_URL', ''),
+  ];
+
+  return $initialized;
+}
 
 /**
  * Implements hook_entity_presave().
@@ -58,36 +140,59 @@ function minsait_login_clave_form_alter(&$form, FormStateInterface $form_state, 
   if (in_array($form_id, ['user_login_form', 'user_register_form'])) {
     $config = \Drupal::config('minsait_login_clave.settings');
     if ($config->get('enable_clave')) {
-      $url = Url::fromUserInput('/user/login/clave');
-      $literal = $config->get('login_literal') ?? 'Acceso con Cl@ve';
-      $button_text = Html::escape((string) t($literal));
+      $samlInfo = minsait_login_clave_initialize_home($config);
+      if ($samlInfo === NULL) {
+        \Drupal::messenger()->addError(t('No se ha podido inicializar el inicio de sesión con Cl@ve. Contacte con el administrador.'));
+      }
+      else {
+        $literal = $config->get('login_literal') ?? 'Acceso con Cl@ve';
+        $button_text = Html::escape((string) t($literal));
+        $request = \Drupal::request();
+        $destination = '';
+        if ($request) {
+          $destination = (string) $request->query->get('destination', '');
+        }
+        $options = [];
+        if ($destination !== '') {
+          $options['query']['destination'] = $destination;
+        }
+        $url = Url::fromRoute('minsait_login_clave.clave_login', [], $options);
 
-      // Crear contenedor para el enlace de Cl@ve
-      $form['clave_login'] = [
-        '#type' => 'container',
-        '#attributes' => [
-          'class' => ['minsait-login-clave-link'],
-          'style' => 'margin-top: 20px;',
-        ],
-        '#weight' => 100,
-      ];
+        $loa = $config->get('loa') ?? 'http://eidas.europa.eu/LoA/low';
+        $forceLogin = $config->get('force_login') ? 'true' : 'false';
+        $spType = 'public';
 
-      // Crear el botón que enviará el formulario de Cl@ve
-      $form['clave_login']['submit'] = [
-        '#type' => 'button',
-        '#value' => $button_text,
-        '#attributes' => [
-          'class' => ['button', 'minsait-clave-button'],
-          'onclick' => 'return submitClaveForm(this);',
-          'data-action' => $url->toString(),
-          'data-loa' => 'http://eidas.europa.eu/LoA/low',
-          'data-sptype' => 'public',
-          'data-forceauthn' => 'true',
-        ],
-        '#attached' => [
-          'library' => ['minsait_login_clave/clave_submit'],
-        ],
-      ];
+        // Crear contenedor para el enlace de Cl@ve
+        $form['clave_login'] = [
+          '#type' => 'container',
+          '#attributes' => [
+            'class' => ['minsait-login-clave-link'],
+            'style' => 'margin-top: 20px;',
+          ],
+          '#weight' => 100,
+        ];
+
+        // Crear el botón que enviará el formulario de Cl@ve
+        $form['clave_login']['submit'] = [
+          '#type' => 'button',
+          '#value' => $button_text,
+          '#attributes' => [
+            'class' => ['button', 'minsait-clave-button'],
+            'onclick' => 'return submitClaveForm(this);',
+            'data-action' => $url->toString(),
+            'data-loa' => $loa,
+            'data-sptype' => $spType,
+            'data-forceauthn' => $forceLogin,
+          ],
+          '#attached' => [
+            'library' => ['minsait_login_clave/clave_submit'],
+          ],
+        ];
+
+        if ($destination !== '') {
+          $form['clave_login']['submit']['#attributes']['data-destination'] = $destination;
+        }
+      }
     }
   }
   
