@@ -301,3 +301,9 @@ corepack_enable: false
 #   - exec: drush sql:sanitize
 #   - exec: drush updatedb
 #   - exec: drush cache:rebuild
+
+hooks:
+  post-start:
+    - exec: |
+        apt-get update && apt-get install -y sqlite3
+        docker-php-ext-install pdo_sqlite && docker-php-ext-enable pdo_sqlite

@@ -189,7 +189,7 @@ $config = [
      * A possible way to generate a random salt is by running the following command from a unix shell:
      * LC_ALL=C tr -c -d '0123456789abcdefghijklmnopqrstuvwxyz' </dev/urandom | dd bs=32 count=1 2>/dev/null;echo
      */
-    'secretsalt' => 'defaultsecretsalt',
+    'secretsalt' => '3cDmoEY0iW5zTPcIEE0pLKyXD8dyblihhkvFbu/erx6tURUz2D8iMebv4dWR2UMr',
 
     /*
      * This password must be kept secret, and modified from the default value 123.
@@ -1198,7 +1198,7 @@ $config = [
      *
      * The default datastore is 'phpsession'.
      */
-    'store.type'                    => 'phpsession',
+    'store.type'                    => 'sql',
 
     /*
      * The DSN the sql datastore should connect to.
@@ -1206,7 +1206,7 @@ $config = [
      * See http://www.php.net/manual/en/pdo.drivers.php for the various
      * syntaxes.
      */
-    'store.sql.dsn'                 => 'sqlite:/path/to/sqlitedatabase.sq3',
+    'store.sql.dsn'                 => 'sqlite:/var/www/html/clave.sq3',
 
     /*
      * The username and password to use when connecting to the database.
