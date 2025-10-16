@@ -3,8 +3,8 @@
 ## 1. Montar KIT de Cl@ve
 
 ### 2.1. Descarga
-- Descarga la última versión del Kit de PHP desde [aquí](https://administracionelectronica.gob.es/ctt/verPestanaDescargas.htm?idIniciativa=clave)
-- Última versión testeada del Kit: 2.8.0 (Test realizado el 17 Marzo 2025)
+- La versión del Kit de PHP siempre puedes descargarla desde [aquí](https://administracionelectronica.gob.es/ctt/verPestanaDescargas.htm?idIniciativa=clave)
+- Última versión testeada del Kit: 3.0.1 (Test realizado el 16 Octubre 2025)
 
 ### 2.2 Llévalo a ./modules\custom\minsait_login_clave
 - 1. Descomprime el zip descargado
@@ -15,12 +15,34 @@
     - web
 
 ## 2. Apache
-### Llevar la configuración al Apache, si usas DDEV:
-- Por defecto ddev usa nginx, usa apache: `ddev config --webserver-type=apache-fpm`
+
+### Proceso simplificado con DDEV:
+Lanza los siguientes comandos:
+`cp demo/3.0.1/apache-site.conf /var/www/html/.ddev/apache/apache-site.conf`
+`cp demo/3.0.1/config.yaml /var/www/html/.ddev/config.yaml`
+
+### Proceso completo
+#### Llevar la configuración al Apache, si usas DDEV:
+- Por defecto ddev usa nginx, ahora debes usar apache: `ddev config --webserver-type=apache-fpm`
 - LLeva el fichero `demo/apache-site.conf` -> `/.ddev/apache/apache-site.conf` con las modificaciones oportunas.
-- Revisa que hayas eliminado el litearl `#ddev-generated` es lo que permite no sobrescribir el archivo.
+- Revisa que hayas eliminado el literal `#ddev-generated`, ya que este permite que el archivo no se sobrescriba.
+
+#### Instala sqlite3 en tu servidor
+- Añade este hook al final de tu archivo `.ddev/config.yaml`:
+  ```yaml
+  hooks:
+    post-start:
+      - exec: |
+          apt-get update && apt-get install -y sqlite3
+          docker-php-ext-install pdo_sqlite && docker-php-ext-enable pdo_sqlite
+  ```
+- Revisa que hayas eliminado el literal `#ddev-generated`, ya que este permite que el archivo no se sobrescriba.
+
 
 ## 3. Certificados
+
+### Si estás en fase de desarrollo será suficiente con:
+`cp demo/3.0.1/cert /var/www/html/vendor/simplesamlphp/simplesamlphp/cert`
 
 ### Solicitud acceso a Cl@ve
 - El cliente debe pedir el certificado desde:  
@@ -50,21 +72,23 @@
 - Copia los archivos `.p12` y `.cer` en la carpeta `./clave/simplesamlphp/cert`.
 
 ## 3. Modificación del KIT
+
 ### Configuración inicial
 
 Importante, estos comandos son para un arranque inicial, posteriormente se deberá configurar con los datos finales.
 
 #### Configuración
-`rsync -av --delete /home/valerogarte/proyectos/kitclave/kit/simplesamlphp/metadata/   /home/valerogarte/proyectos/drupal10clave/vendor/simplesamlphp/simplesamlphp/metadata/`
-`rsync -av --delete /home/valerogarte/proyectos/kitclave/kit/simplesamlphp/cert/   /home/valerogarte/proyectos/drupal10clave/vendor/simplesamlphp/simplesamlphp/cert/`
-`rsync -av --delete /home/valerogarte/proyectos/kitclave/kit/simplesamlphp/config/   /home/valerogarte/proyectos/drupal10clave/vendor/simplesamlphp/simplesamlphp/config/`
+`rsync -av --delete /path-to-module/minsait_login_clave/demo/3.0.1/metadata/   /path-to-vendor/vendor/simplesamlphp/simplesamlphp/metadata/`
+`rsync -av --delete /path-to-module/minsait_login_clave/demo/3.0.1/cert/   /path-to-vendor/vendor/simplesamlphp/simplesamlphp/cert/`
+`rsync -av --delete /path-to-module/minsait_login_clave/demo/3.0.1/config/   /path-to-vendor/vendor/simplesamlphp/simplesamlphp/config/`
+
 #### Módulos
-`rsync -av --delete /home/valerogarte/proyectos/kitclave/kit/simplesamlphp/modules/   /home/valerogarte/proyectos/drupal10clave/vendor/simplesamlphp/simplesamlphp/modules/`
+`rsync -av --delete /path-to-module/minsait_login_clave/demo/3.0.1/modules/   /path-to-vendor/vendor/simplesamlphp/simplesamlphp/modules/`
 
 ### Test
 Revisa que todo funcione correctamente con datos demo.
 
-### Configuración final
+### Configuración final para producción
 - Edita el archivo `./clave/simplesamlphp/config/authsources.php`:
   - Sustituye el certificado antiguo por el nuevo.
   - Añade el valor **CIF_DIR3** al array.
@@ -72,9 +96,9 @@ Revisa que todo funcione correctamente con datos demo.
     - `validate.certificate`
     - `privatekey`
     - `privatekey_password`
-  - Sustituye `http://localhost` por `https://sepa.ddev.site/`
+  - Sustituye `http://localhost` por `https://tu-dominio.com/`
   - El parámetro logout debe apuntar al frontal de tu proyecto
-    'logout.url' => 'https://sepa.ddev.site',
+    'logout.url' => 'https://tu-dominio.com',
 
 ### Cambio de variables
 - Edita el archivo `./clave/simplesamlphp/config/config.php`

@@ -86,12 +86,12 @@ class SettingsForm extends ConfigFormBase {
       }
     }
 
-    // Verificación del fichero clave.sq3
-    $claveDbPath = DRUPAL_ROOT . '/../clave.sq3';
-    if (file_exists($claveDbPath) && is_readable($claveDbPath)) {
-      $message .= '<br>✅ ' . $this->t('El fichero clave.sq3 existe y tiene permisos de lectura.');
+    // Verifica que sqlite3 esté instalado
+    $sqliteCheck = shell_exec('which sqlite3');
+    if ($sqliteCheck) {
+      $message .= '<br>✅ ' . $this->t('El comando sqlite3 está disponible en el sistema.');
     } else {
-      $message .= '<br>❌ ' . $this->t('El fichero clave.sq3 no existe o no tiene permisos de lectura. Debes crearlo con el comando: "<code>sqlite3 ' . DRUPAL_ROOT . '/../clave.sqq3</code>"');
+      $message .= '<br>❌ ' . $this->t('El comando sqlite3 no está disponible en el sistema. Debes instalar SQLite3 para que funcione correctamente.');
     }
 
     // Verificación del fichero de configuración
@@ -109,6 +109,14 @@ class SettingsForm extends ConfigFormBase {
       }
     } else {
       $message .= '<br>❌ ' . $this->t('El fichero de configuración config.php no existe o no tiene permisos de lectura.');
+    }
+
+    // Verificación del fichero clave.sq3
+    $claveDbPath = DRUPAL_ROOT . '/../clave.sq3';
+    if (file_exists($claveDbPath) && is_readable($claveDbPath)) {
+      $message .= '<br>✅ ' . $this->t('El fichero clave.sq3 existe y tiene permisos de lectura.');
+    } else {
+      $message .= '<br>❌ ' . $this->t('El fichero clave.sq3 no existe o no tiene permisos de lectura. Debes crearlo con el comando: "<code>sqlite3 ' . DRUPAL_ROOT . '/../clave.sqq3</code>"');
     }
 
     $elements['modules_check'] = [
