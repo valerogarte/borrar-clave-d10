@@ -315,23 +315,13 @@ class MinsaitLoginClaveController extends ControllerBase {
   }
 
   protected function bootstrapSimpleSaml($config, ?Request $request = NULL) {
-    $kitBasePath = DRUPAL_ROOT . '/../clave';
-    $sspBasePath = $kitBasePath . '/simplesamlphp';
+    $vendorBasePath = DRUPAL_ROOT . '/../vendor';
+    $sspBasePath = $vendorBasePath . '/simplesamlphp/simplesamlphp';
     $sspConfigDir = $sspBasePath . '/config';
 
-    if (!is_dir($kitBasePath) || !is_dir($sspBasePath) || !is_dir($sspConfigDir)) {
-      $this->logger->error('No se encontró la instalación del kit Cl@ve. Ruta esperada: @path', ['@path' => $kitBasePath]);
+    if (!is_dir($vendorBasePath) || !is_dir($sspBasePath) || !is_dir($sspConfigDir)) {
+      $this->logger->error('No se encontró la instalación de SimpleSAMLphp. Ruta esperada: @path', ['@path' => $sspBasePath]);
       throw new ServiceUnavailableHttpException(NULL, 'Error en la configuración de SAML.');
-    }
-
-    $kitAutoload = $kitBasePath . '/vendor/autoload.php';
-    if (file_exists($kitAutoload)) {
-      require_once $kitAutoload;
-    }
-
-    $sspAutoload = $sspBasePath . '/vendor/autoload.php';
-    if (file_exists($sspAutoload)) {
-      require_once $sspAutoload;
     }
 
     $sspLibAutoload = $sspBasePath . '/lib/_autoload.php';

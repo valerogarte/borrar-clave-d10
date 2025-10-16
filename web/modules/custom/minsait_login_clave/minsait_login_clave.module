@@ -35,24 +35,14 @@ function minsait_login_clave_initialize_home($config) {
 
   $logger = \Drupal::logger('minsait_login_clave');
 
-  $kitBasePath = DRUPAL_ROOT . '/../clave';
-  $sspBasePath = $kitBasePath . '/simplesamlphp';
+  $vendorBasePath = DRUPAL_ROOT . '/../vendor';
+  $sspBasePath = $vendorBasePath . '/simplesamlphp/simplesamlphp';
   $sspConfigDir = $sspBasePath . '/config';
 
-  if (!is_dir($kitBasePath) || !is_dir($sspBasePath) || !is_dir($sspConfigDir)) {
-    $logger->error('No se encontró la instalación del kit Cl@ve en @path.', ['@path' => $kitBasePath]);
+  if (!is_dir($vendorBasePath) || !is_dir($sspBasePath) || !is_dir($sspConfigDir)) {
+    $logger->error('No se encontró la instalación de SimpleSAMLphp en @path.', ['@path' => $sspBasePath]);
     $initialized = NULL;
     return $initialized;
-  }
-
-  $kitAutoload = $kitBasePath . '/vendor/autoload.php';
-  if (file_exists($kitAutoload)) {
-    require_once $kitAutoload;
-  }
-
-  $sspAutoload = $sspBasePath . '/vendor/autoload.php';
-  if (file_exists($sspAutoload)) {
-    require_once $sspAutoload;
   }
 
   $sspLibAutoload = $sspBasePath . '/lib/_autoload.php';

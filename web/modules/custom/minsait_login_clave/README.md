@@ -1,17 +1,17 @@
 # Resumen de Configuración y Certificados
 
-## 1. Montar KIT de Cl@ve
+## 1. Preparar SimpleSAMLphp
 
-### 2.1. Descarga
+### 1.1. Obtener los recursos del Kit Cl@ve (opcional)
 - Descarga la última versión del Kit de PHP desde [aquí](https://administracionelectronica.gob.es/ctt/verPestanaDescargas.htm?idIniciativa=clave)
 - Última versión testeada del Kit: 2.8.0 (Test realizado el 17 Marzo 2025)
 
-### 2.2 Llévalo a ./modules\custom\minsait_login_clave
+### 1.2 Copia la configuración dentro de `vendor/simplesamlphp/simplesamlphp`
 - 1. Descomprime el zip descargado
-- 2. Mueve la carpeta `paquete-integracion-clave` a una carpeta antes de DRUPAL_ROOT y renómbrala a `clave`
+- 2. Copia el contenido de la carpeta `paquete-integracion-clave/simplesamlphp` dentro de `vendor/simplesamlphp/simplesamlphp`
 - 3. Debe quedar una estructura como:
   - /var/www/html/
-    - clave
+    - vendor/simplesamlphp/simplesamlphp
     - web
 
 ## 2. Apache
@@ -46,8 +46,8 @@
 ### Creación del archivo .p12
 - Concatena el contenido del archivo `.cer` dentro del `.pem` y guarda el resultado en un nuevo fichero con extensión `.p12`.
 
-### Integración en el kit `clave`
-- Copia los archivos `.p12` y `.cer` en la carpeta `./clave/simplesamlphp/cert`.
+### Integración en SimpleSAMLphp
+- Copia los archivos `.p12` y `.cer` en la carpeta `vendor/simplesamlphp/simplesamlphp/cert`.
 
 ## 3. Modificación del KIT
 ### Configuración inicial
@@ -65,7 +65,7 @@ Importante, estos comandos son para un arranque inicial, posteriormente se deber
 Revisa que todo funcione correctamente con datos demo.
 
 ### Configuración final
-- Edita el archivo `./clave/simplesamlphp/config/authsources.php`:
+- Edita el archivo `vendor/simplesamlphp/simplesamlphp/config/authsources.php`:
   - Sustituye el certificado antiguo por el nuevo.
   - Añade el valor **CIF_DIR3** al array.
   - Configura:
@@ -77,9 +77,9 @@ Revisa que todo funcione correctamente con datos demo.
     'logout.url' => 'https://sepa.ddev.site',
 
 ### Cambio de variables
-- Edita el archivo `./clave/simplesamlphp/config/config.php`
+- Edita el archivo `vendor/simplesamlphp/simplesamlphp/config/config.php`
 - Revisa y adapta los siguientes valores:
     1. `ASSERTION_URL` -> Url base de la web
     2. `DEFAULT_SPID` -> Identificador del SP configurado para tu organismo
 
-La nueva integración no requiere copiar scripts personalizados ni modificar las clases internas del módulo `saml`. El módulo de Drupal carga el kit directamente desde `../clave` y utiliza el módulo `clave` incluido para gestionar el flujo SAML.
+La integración no requiere copiar scripts personalizados ni modificar las clases internas del módulo `saml`. El módulo de Drupal carga SimpleSAMLphp directamente desde `../vendor/simplesamlphp/simplesamlphp` y utiliza el módulo `clave` incluido para gestionar el flujo SAML.
