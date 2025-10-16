@@ -12,7 +12,7 @@ use Drupal\Core\Entity\Entity\EntityViewDisplay;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityStorageException;
 
-define('FIELD_NUMERO_DOCUMENTO', 'field_numero_documento');
+define('FIELD_NUMERO_DOCUMENTO', 'name');
 
 /**
  * Implements hook_entity_presave().

@@ -26,11 +26,104 @@ class SettingsForm extends ConfigFormBase {
   }
 
   /**
+   * Performs all system verifications and returns markup elements.
+   *
+   * @return array
+   *   Array containing verification form elements.
+   */
+  private function performVerifications() {
+    $elements = [];
+    $vendorSimpleSamlPHP = DRUPAL_ROOT . '/../vendor/simplesamlphp';
+
+    // Verificación de SimpleSAMLphp
+    if (!is_dir($vendorSimpleSamlPHP)) {
+      $elements['saml_status'] = [
+        '#type' => 'markup',
+        '#markup' => '<div style="border:1px solid #ccc; padding:8px; margin-bottom:20px;">❌ '
+          . $this->t('La librería simplesamlphp no existe en @path. Debe instalarla con "<code>composer require simplesamlphp/simplesamlphp:2.4.3</code>"', ['@path' => $vendorSimpleSamlPHP])
+          . '</div>',
+      ];
+    }
+    else {
+      if (is_readable($vendorSimpleSamlPHP)) {
+        $icon = '✅';
+        $message = $this->t('@icon La librería simplesamlphp está instalada y con permisos de lectura.', ['@icon' => $icon]);
+      }
+      else {
+        $icon = '⚠';
+        $message = $this->t('@icon La librería simplesamlphp existe pero sin permisos de lectura.', ['@icon' => $icon]);
+      }
+      $elements['saml_status'] = [
+        '#type' => 'markup',
+        '#markup' => '<div style="border:1px solid #ccc; padding:8px; margin-bottom:20px;">'
+          . $message . '</div>',
+      ];
+    }
+
+    // Verificación de módulos y base de datos clave.sq3
+    $modulesPath = $vendorSimpleSamlPHP . '/simplesamlphp/modules';
+    $requiredModules = [
+      'admin', 'authorize', 'clave', 'consent', 'consentAdmin', 'core', 'cron',
+      'discopower', 'exampleauth', 'ldap', 'metarefresh', 'multiauth', 'radius',
+      'saml', 'sqlauth', 'statistics'
+    ];
+    $missingModules = [];
+    $message = '❌ ' . $this->t('No se encontró la carpeta de módulos en @path.', ['@path' => $modulesPath]);
+
+    if (is_dir($modulesPath) && is_readable($modulesPath)) {
+      foreach ($requiredModules as $module) {
+        if (!is_dir($modulesPath . '/' . $module)) {
+          $missingModules[] = $module;
+        }
+      }
+      if (empty($missingModules)) {
+        $message = $this->t('✅ Todos los módulos requeridos están presentes en @path.', ['@path' => $modulesPath]);
+      } else {
+        $message = $this->t('⚠ Faltan los siguientes módulos en @path: @missing', [
+          '@path' => $modulesPath,
+          '@missing' => implode(', ', $missingModules)
+        ]);
+      }
+    }
+
+    // Verificación del fichero clave.sq3
+    $claveDbPath = DRUPAL_ROOT . '/../clave.sq3';
+    if (file_exists($claveDbPath) && is_readable($claveDbPath)) {
+      $message .= '<br>✅ ' . $this->t('El fichero clave.sq3 existe y tiene permisos de lectura.');
+    } else {
+      $message .= '<br>❌ ' . $this->t('El fichero clave.sq3 no existe o no tiene permisos de lectura. Debes crearlo con el comando: "<code>sqlite3 ' . DRUPAL_ROOT . '/../clave.sqq3</code>"');
+    }
+
+    // Verificación del fichero de configuración
+    $configFilePath = $vendorSimpleSamlPHP . '/simplesamlphp/config/config.php';
+    // Revisa que el storetype = 'sql' y que la ruta de la base de datos es correcta
+    if (file_exists($configFilePath) && is_readable($configFilePath)) {
+      $configContent = file_get_contents($configFilePath);
+      // Usar expresiones regulares para permitir espacios arbitrarios.
+      $storeTypeSql = preg_match("/'store\.type'\s*=>\s*'sql'/", $configContent);
+
+      if ($storeTypeSql) {
+        $message .= '<br>✅ ' . $this->t('El fichero de configuración config.php está correctamente configurado para usar la base de datos SQLite.');
+      } else {
+        $message .= '<br>❌ ' . $this->t('El fichero de configuración config.php no está correctamente configurado para usar la base de datos SQLite. Debes revisar las opciones store.type y database. Recuerda que tienes que usar el config.php del kit Cl@ve y modificar el store.type a "sql" y la ruta de la base de datos a la ruta completa del fichero clave.sq3.');
+      }
+    } else {
+      $message .= '<br>❌ ' . $this->t('El fichero de configuración config.php no existe o no tiene permisos de lectura.');
+    }
+
+    $elements['modules_check'] = [
+      '#type' => 'markup',
+      '#markup' => '<div style="border:1px solid #ccc; padding:8px; margin-bottom:20px;">' . $message . '</div>',
+    ];
+
+    return $elements;
+  }
+
+  /**
    * {@inheritdoc}
    */
   public function buildForm(array $form, FormStateInterface $form_state) {
     $config = $this->config('minsait_login_clave.settings');
-    $kitClavePath = DRUPAL_ROOT . '/../vendor/simplesamlphp';
 
     // Crear vertical tabs.
     $form['tabs'] = [
@@ -47,53 +140,8 @@ class SettingsForm extends ConfigFormBase {
       '#open' => TRUE,
     ];
 
-    if (!is_dir($kitClavePath)) {
-      $form['verificaciones']['saml_status'] = [
-        '#type' => 'markup',
-        '#markup' => '<div style="border:1px solid #ccc; padding:8px; margin-bottom:20px;">❌ '
-          . $this->t('La carpeta del Kit Cl@ve no existe en @path.', ['@path' => $kitClavePath])
-          . '</div>',
-      ];
-    }
-    else {
-      if (is_readable($kitClavePath)) {
-        $icon = '✅';
-        $message = $this->t('@icon El Kit Cl@ve está instalado y con permisos de lectura.', ['@icon' => $icon]);
-      }
-      else {
-        $icon = '⚠';
-        $message = $this->t('@icon La carpeta del Kit Cl@ve existe pero sin permisos de lectura.', ['@icon' => $icon]);
-      }
-      $form['verificaciones']['saml_status'] = [
-        '#type' => 'markup',
-        '#markup' => '<div style="border:1px solid #ccc; padding:8px; margin-bottom:20px;">'
-          . $message . '</div>',
-      ];
-    }
-
-    $checks = [
-      $kitClavePath . '/vendor/autoload.php' => $this->t('Autoloader principal del kit (vendor/autoload.php).'),
-      $kitClavePath . '/simplesamlphp/vendor/autoload.php' => $this->t('Autoloader de SimpleSAMLphp (simplesamlphp/vendor/autoload.php).'),
-      $kitClavePath . '/simplesamlphp/lib/_autoload.php' => $this->t('Autoloader principal de SimpleSAMLphp (simplesamlphp/lib/_autoload.php).'),
-      $kitClavePath . '/simplesamlphp/config/config.php' => $this->t('Fichero de configuración (simplesamlphp/config/config.php).'),
-    ];
-
-    foreach ($checks as $path => $description) {
-      $message = '❌ ' . $this->t('No se encontró @desc en @path.', ['@desc' => $description, '@path' => $path]);
-      if (file_exists($path)) {
-        if (is_readable($path)) {
-          $message = $this->t('✅ @desc localizado y con permisos de lectura.', ['@desc' => $description]);
-        }
-        else {
-          $message = $this->t('⚠ @desc localizado pero sin permisos de lectura.', ['@desc' => $description]);
-        }
-      }
-
-      $form['verificaciones']['check_' . md5($path)] = [
-        '#type' => 'markup',
-        '#markup' => '<div style="border:1px solid #ccc; padding:8px; margin-bottom:20px;">' . $message . '</div>',
-      ];
-    }
+    // Agregar verificaciones desde el método separado
+    $form['verificaciones'] += $this->performVerifications();
 
     // Segundo tab: Configuración.
     $form['configuracion'] = [
@@ -205,6 +253,7 @@ class SettingsForm extends ConfigFormBase {
       'default_langcode', 
       'user_picture'
     ];
+    $user_fields_options[''] = $this->t('- No configurado -');
     foreach ($user_fields_definitions as $field_name => $definition) {
       if (!in_array($field_name, $excluded_fields)) {
       $user_fields_options[$field_name] = $definition->getLabel()." ($field_name)";
@@ -214,26 +263,38 @@ class SettingsForm extends ConfigFormBase {
     
     $form['registro']['id_field'] = [
       '#type' => 'select',
-      '#title' => $this->t('Campo número de documento'),
+      '#title' => $this->t('Campo número de documento (debe ser único)'),
       '#default_value' => $config->get('id_field') ?? FIELD_NUMERO_DOCUMENTO,
-      '#options' => $user_fields_options,
+      '#options' => array_slice($user_fields_options, 1), // Remove empty option for required field
       '#description' => $this->t('Campo con el que se hace match el número de documento, debe ser único.'),
+      '#attributes' => [
+        'class' => ['field-selector'],
+        'data-field-type' => 'id_field',
+      ],
     ];
 
     $form['registro']['nombre_field'] = [
       '#type' => 'select',
-      '#title' => $this->t('Campo para el nombre'),
-      '#default_value' => $config->get('nombre_field') ?? 'field_nombre',
+      '#title' => $this->t('Campo para el nombre recibido se guarda en:'),
+      '#default_value' => $config->get('nombre_field') ?? '',
       '#options' => $user_fields_options,
-      '#description' => $this->t('Nombre del campo en el usuario que almacena el nombre.'),
+      '#description' => $this->t('Nombre del campo en el usuario que almacena el nombre. Dejar vacío si no se desea sincronizar.'),
+      '#attributes' => [
+        'class' => ['field-selector'],
+        'data-field-type' => 'nombre_field',
+      ],
     ];
 
     $form['registro']['apellido_field'] = [
       '#type' => 'select',
-      '#title' => $this->t('Campo para el apellido'),
-      '#default_value' => $config->get('apellido_field') ?? 'field_apellido_1',
+      '#title' => $this->t('Campo para el apellido recibido se guarda en:'),
+      '#default_value' => $config->get('apellido_field') ?? '',
       '#options' => $user_fields_options,
-      '#description' => $this->t('Nombre del campo en el usuario que almacena el apellido.'),
+      '#description' => $this->t('Nombre del campo en el usuario que almacena el apellido. Dejar vacío si no se desea sincronizar.'),
+      '#attributes' => [
+        'class' => ['field-selector'],
+        'data-field-type' => 'apellido_field',
+      ],
     ];
 
     $form['registro']['assign_roles'] = [
@@ -303,6 +364,40 @@ class SettingsForm extends ConfigFormBase {
    */
   public function validateForm(array &$form, FormStateInterface $form_state) {
     parent::validateForm($form, $form_state);
+    
+    // Get field values
+    $id_field = $form_state->getValue('id_field');
+    $nombre_field = $form_state->getValue('nombre_field');
+    $apellido_field = $form_state->getValue('apellido_field');
+    
+    // Create array of non-empty fields
+    $selected_fields = [];
+    if (!empty($id_field)) {
+      $selected_fields['id_field'] = $id_field;
+    }
+    if (!empty($nombre_field)) {
+      $selected_fields['nombre_field'] = $nombre_field;
+    }
+    if (!empty($apellido_field)) {
+      $selected_fields['apellido_field'] = $apellido_field;
+    }
+    
+    // Check for duplicates
+    $field_values = array_values($selected_fields);
+    $unique_values = array_unique($field_values);
+    
+    if (count($field_values) !== count($unique_values)) {
+      // Find which fields are duplicated
+      $duplicates = array_diff_assoc($field_values, $unique_values);
+      $duplicate_value = reset($duplicates);
+      
+      // Set error on the fields that have duplicates
+      foreach ($selected_fields as $field_name => $value) {
+        if ($value === $duplicate_value) {
+          $form_state->setErrorByName($field_name, $this->t('No se puede seleccionar el mismo campo para múltiples opciones. El campo "@field" ya está siendo utilizado.', ['@field' => $value]));
+        }
+      }
+    }
   }
 
   /**
@@ -323,6 +418,7 @@ class SettingsForm extends ConfigFormBase {
       ->set('nombre_field', $form_state->getValue('nombre_field'))
       ->set('apellido_field', $form_state->getValue('apellido_field'))
       ->set('assign_roles', $form_state->getValue('assign_roles'))
+      ->set('exclude_login', $form_state->getValue('exclude_login_roles'))
       ->set('AEATIdP', $form_state->getValue('AEATIdP'))
       ->set('EIDASIdP', $form_state->getValue('EIDASIdP'))
       ->set('CLVMOVILIdP', $form_state->getValue('CLVMOVILIdP'))

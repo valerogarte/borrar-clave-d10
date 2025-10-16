@@ -267,10 +267,15 @@ class MinsaitLoginClaveController extends ControllerBase {
     }
 
     if($config->get('sync_field')){
-      $nombre_field = $config->get('nombre_field') ?? 'field_nombre';
-      $apellido_field = $config->get('apellido_field') ?? 'field_apellido_1';
-      $user->set($nombre_field, $givenName);
-      $user->set($apellido_field, $familyName);
+      $nombre_field = $config->get('nombre_field');
+      $apellido_field = $config->get('apellido_field');
+      
+      if (!empty($nombre_field) && $user->hasField($nombre_field)) {
+        $user->set($nombre_field, $givenName);
+      }
+      if (!empty($apellido_field) && $user->hasField($apellido_field)) {
+        $user->set($apellido_field, $familyName);
+      }
       $user->save();
     }
 
@@ -306,10 +311,15 @@ class MinsaitLoginClaveController extends ControllerBase {
     $newUser->setPassword($randomPwd);
 
     // Ajuste: usar campos configurables para nombre y apellido.
-    $nombre_field = $config->get('nombre_field') ?? 'field_nombre';
-    $apellido_field = $config->get('apellido_field') ?? 'field_apellido_1';
-    $newUser->set($nombre_field, $givenName);
-    $newUser->set($apellido_field, $familyName);
+    $nombre_field = $config->get('nombre_field');
+    $apellido_field = $config->get('apellido_field');
+    
+    if (!empty($nombre_field) && $newUser->hasField($nombre_field)) {
+      $newUser->set($nombre_field, $givenName);
+    }
+    if (!empty($apellido_field) && $newUser->hasField($apellido_field)) {
+      $newUser->set($apellido_field, $familyName);
+    }
 
     $assign_roles = $config->get('assign_roles');
     if (!empty($assign_roles) && is_array($assign_roles)) {
