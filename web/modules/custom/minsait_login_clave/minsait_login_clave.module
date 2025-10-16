@@ -58,6 +58,15 @@ function minsait_login_clave_form_alter(&$form, FormStateInterface $form_state, 
   if (in_array($form_id, ['user_login_form', 'user_register_form'])) {
     $config = \Drupal::config('minsait_login_clave.settings');
     if ($config->get('enable_clave')) {
+
+
+      // Se guarda en la sesión de SimpleSAML el source seleccionado por el usuario
+      $session = SimpleSAML\Session::getSessionFromRequest();
+      $session->cleanup();
+      $session->deleteData('string', 'spid');
+
+      
+      
       $url = Url::fromUserInput('/user/login/clave');
       $literal = $config->get('login_literal') ?? 'Acceso con Cl@ve';
       $button_text = Html::escape((string) t($literal));
