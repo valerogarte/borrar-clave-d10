@@ -16,6 +16,9 @@ use \Drupal\Component\Utility\Crypt;
 use SimpleSAML\Auth\Simple;
 use SimpleSAML\Auth\State;
 use SimpleSAML\Configuration;
+use SimpleSAML\Metadata\MetaDataStorageHandler;
+use SimpleSAML\Session;
+use SimpleSAML\Store\StoreFactory;
 use SimpleSAML\Utils\Random;
 use SAML2\DOMDocumentFactory;
 use SAML2\XML\Chunk;
@@ -47,7 +50,7 @@ class MinsaitLoginClaveController extends ControllerBase {
     $oldEnv = NULL;
 
     try {
-      [$auth, $sspConfig, $oldEnv] = $this->bootstrapSimpleSaml($config);
+      [$auth, $sspConfig, $oldEnv] = $this->bootstrapSimpleSaml($config, $request);
 
       if ($auth->isAuthenticated()) {
         $destination = $this->extractDestination($request);
@@ -90,7 +93,7 @@ class MinsaitLoginClaveController extends ControllerBase {
     $oldEnv = NULL;
 
     try {
-      [$auth, $sspConfig, $oldEnv] = $this->bootstrapSimpleSaml($config);
+      [$auth, $sspConfig, $oldEnv] = $this->bootstrapSimpleSaml($config, $request);
 
       if (!$auth->isAuthenticated()) {
         $loginOptions = $this->buildLoginOptions($sspConfig, $config, $request);
@@ -157,7 +160,7 @@ class MinsaitLoginClaveController extends ControllerBase {
     $oldEnv = NULL;
 
     try {
-      [, , $oldEnv] = $this->bootstrapSimpleSaml($config);
+      [, , $oldEnv] = $this->bootstrapSimpleSaml($config, $request);
 
       $errorMessage = $this->t('Error desconocido devuelto por Cl@ve.');
 
@@ -314,7 +317,7 @@ class MinsaitLoginClaveController extends ControllerBase {
     return $newUser;
   }
 
-  protected function bootstrapSimpleSaml($config) {
+  protected function bootstrapSimpleSaml($config, ?Request $request = NULL) {
     $paths = $this->locateSimpleSamlPaths();
 
     foreach ($paths['autoloads'] as $autoload) {
@@ -328,6 +331,14 @@ class MinsaitLoginClaveController extends ControllerBase {
     }
 
     require_once $paths['lib_autoload'];
+
+    // Clear cached state before switching the SimpleSAMLphp environment. This avoids
+    // reusing configuration or session handlers that may belong to a previous
+    // bootstrap attempt.
+    Configuration::clearInternalState();
+    Session::clearInternalState();
+    MetaDataStorageHandler::clearInternalState();
+    StoreFactory::clearInternalState();
 
     $oldEnv = getenv('SIMPLESAMLPHP_CONFIG_DIR');
     putenv('SIMPLESAMLPHP_CONFIG_DIR=' . $paths['config_dir']);
@@ -346,6 +357,21 @@ class MinsaitLoginClaveController extends ControllerBase {
 
     if ($spId === '') {
       throw new \RuntimeException('No se pudo determinar el SPID para Cl@ve.');
+    }
+
+    $session = Session::getSessionFromRequest();
+
+    if ($request !== NULL) {
+      $selectedSource = $request->get('source');
+      if (is_string($selectedSource) && $selectedSource !== '') {
+        $session->setData('string', 'spid', $selectedSource, Session::DATA_TIMEOUT_SESSION_END);
+        $spId = $selectedSource;
+      }
+    }
+
+    $storedSp = $session->getData('string', 'spid');
+    if (is_string($storedSp) && $storedSp !== '') {
+      $spId = $storedSp;
     }
 
     $auth = new Simple($spId);
