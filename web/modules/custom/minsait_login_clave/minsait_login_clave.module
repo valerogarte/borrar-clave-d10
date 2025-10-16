@@ -15,10 +15,13 @@ use Drupal\Core\Entity\EntityStorageException;
 define('FIELD_NUMERO_DOCUMENTO', 'name');
 
 /**
+ * 
+ * Comprueba que no exista otro usuario con el mismo número de documento.
+ * 
  * Implements hook_entity_presave().
+ * 
  */
 function minsait_login_clave_entity_presave(EntityInterface $entity) {
-  // Solo procesar entidades de usuario.
   if ($entity->getEntityTypeId() !== 'user') {
     return;
   }
@@ -52,22 +55,24 @@ function minsait_login_clave_entity_presave(EntityInterface $entity) {
 }
 
 /**
+ * 
+ * Implementa el botón de Clave dentro del formulario de usuario.
+ * 
  * Implements hook_form_alter().
  */
 function minsait_login_clave_form_alter(&$form, FormStateInterface $form_state, $form_id) {
   if (in_array($form_id, ['user_login_form', 'user_register_form'])) {
+    
     $config = \Drupal::config('minsait_login_clave.settings');
-    if ($config->get('enable_clave')) {
 
+    if ($config->get('enable_clave')) {
 
       // Se guarda en la sesión de SimpleSAML el source seleccionado por el usuario
       $session = SimpleSAML\Session::getSessionFromRequest();
       $session->cleanup();
       $session->deleteData('string', 'spid');
 
-      
-      
-      $url = Url::fromUserInput('/user/login/clave');
+      $url = Url::fromRoute('minsait_login_clave.clave_login');
       $literal = $config->get('login_literal') ?? 'Acceso con Cl@ve';
       $button_text = Html::escape((string) t($literal));
 
@@ -106,7 +111,10 @@ function minsait_login_clave_form_alter(&$form, FormStateInterface $form_state, 
 }
 
 /**
- * Custom validation handler for user edit form.
+ * 
+ * Valida que el número de documento tenga un formato correcto y que no exista otro usuario con el mismo número.
+ * 
+ * Implements hook_user_form_validate().
  */
 function minsait_login_clave_user_form_validate(array &$form, FormStateInterface $form_state) {
   $config = \Drupal::config('minsait_login_clave.settings');

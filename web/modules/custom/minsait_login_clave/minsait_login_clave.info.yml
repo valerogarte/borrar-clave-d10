@@ -3,5 +3,5 @@ type: module
 description: Identificación con cl@ve en Drupal.
 package: minsait
 core: 10.x
-core_version_requirement: ^8 || ^9 || ^10 || ^11
+core_version_requirement: ^8 || ^9 || ^10
 configure: minsait_login_clave.settings_form
