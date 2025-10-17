@@ -59,32 +59,6 @@ class ClaveLogout {
     }
 
     try {
-      $paths = $this->locateSimpleSamlPaths();
-    }
-    catch (\Throwable $exception) {
-      $this->logger->error('No se pudo localizar SimpleSAMLphp para realizar el logout de Cl@ve: @msg', [
-        '@msg' => $exception->getMessage(),
-      ]);
-      return;
-    }
-
-    foreach ($paths['autoloads'] as $autoload) {
-      if (file_exists($autoload)) {
-        require_once $autoload;
-      }
-    }
-
-    if (!file_exists($paths['lib_autoload'])) {
-      $this->logger->error('No se pudo cargar el autoloader principal de SimpleSAML para realizar el logout.');
-      return;
-    }
-
-    require_once $paths['lib_autoload'];
-
-    $oldEnv = getenv('SIMPLESAMLPHP_CONFIG_DIR');
-    putenv('SIMPLESAMLPHP_CONFIG_DIR=' . $paths['config_dir']);
-
-    try {
       $sspConfig = Configuration::getConfig('config.php');
       $sspSession = $this->loadSimpleSamlSession();
       $spId = $this->determineSpId($sspConfig, $config, $sspSession);
@@ -118,14 +92,6 @@ class ClaveLogout {
     catch (\Throwable $e) {
       $this->logger->error('Error al ejecutar el logout en Cl@ve: @msg', ['@msg' => $e->getMessage()]);
     }
-    finally {
-      if ($oldEnv !== false && $oldEnv !== NULL) {
-        putenv('SIMPLESAMLPHP_CONFIG_DIR=' . $oldEnv);
-      }
-      else {
-        putenv('SIMPLESAMLPHP_CONFIG_DIR');
-      }
-    }
   }
 
   private function getReturnUrl() {
@@ -140,42 +106,6 @@ class ClaveLogout {
     }
 
     return '/';
-  }
-
-  /**
-   * Localiza la instalación de SimpleSAMLphp.
-   */
-  protected function locateSimpleSamlPaths(): array {
-    $potentialBases = [
-      DRUPAL_ROOT . '/../clave/simplesamlphp',
-      DRUPAL_ROOT . '/../vendor/simplesamlphp/simplesamlphp',
-    ];
-
-    $basePath = NULL;
-    foreach ($potentialBases as $candidate) {
-      if (is_dir($candidate) && is_dir($candidate . '/config')) {
-        $basePath = $candidate;
-        break;
-      }
-    }
-
-    if (!$basePath) {
-      throw new \RuntimeException('No se pudo localizar la instalación de SimpleSAMLphp para Cl@ve.');
-    }
-
-    $kitBase = DRUPAL_ROOT . '/../clave';
-    $autoloads = [];
-    if (is_dir($kitBase)) {
-      $autoloads[] = $kitBase . '/vendor/autoload.php';
-    }
-    $autoloads[] = $basePath . '/vendor/autoload.php';
-
-    return [
-      'base_path' => $basePath,
-      'config_dir' => $basePath . '/config',
-      'lib_autoload' => $basePath . '/lib/_autoload.php',
-      'autoloads' => $autoloads,
-    ];
   }
 
   /**
