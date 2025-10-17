@@ -8,7 +8,7 @@ minsait_login_clave.clave_login:
     _method: 'GET|POST'
   options:
     no_cache: TRUE
-    _csrf_token: 'FALSE'
+    _csrf_token: FALSE
 
 minsait_login_clave.clave_callback:
   path: "/user/login/clave/callback"
@@ -20,7 +20,7 @@ minsait_login_clave.clave_callback:
     _method: 'GET|POST'
   options:
     no_cache: TRUE
-    _csrf_token: 'FALSE'
+    _csrf_token: FALSE
 
 minsait_login_clave.clave_error:
   path: "/user/login/clave/error"
@@ -32,7 +32,7 @@ minsait_login_clave.clave_error:
     _method: 'GET|POST'
   options:
     no_cache: TRUE
-    _csrf_token: 'FALSE'
+    _csrf_token: FALSE
 
 minsait_login_clave.settings_form:
   path: "/admin/config/system/minsait-login-clave"

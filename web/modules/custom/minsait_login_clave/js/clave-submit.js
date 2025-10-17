@@ -5,9 +5,14 @@
 /**
  * Función para enviar el formulario de Cl@ve con los parámetros necesarios.
  */
-function submitClaveForm(button) {
+function submitClaveForm(button, event) {
+  // Obtener el evento de manera compatible con todos los navegadores
+  const evt = event || window.event;
+  
   // Prevenir el comportamiento por defecto
-  event.preventDefault();
+  if (evt && evt.preventDefault) {
+    evt.preventDefault();
+  }
   
   // Obtener los datos del botón
   const action = button.getAttribute('data-action');

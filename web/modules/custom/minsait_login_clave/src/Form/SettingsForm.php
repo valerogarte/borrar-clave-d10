@@ -87,11 +87,10 @@ class SettingsForm extends ConfigFormBase {
     }
 
     // Verifica que sqlite3 esté instalado
-    $sqliteCheck = shell_exec('which sqlite3');
-    if ($sqliteCheck) {
-      $message .= '<br>✅ ' . $this->t('El comando sqlite3 está disponible en el sistema.');
+    if (extension_loaded('sqlite3')) {
+      $message .= '<br>✅ ' . $this->t('La extensión SQLite3 de PHP está disponible en el sistema.');
     } else {
-      $message .= '<br>❌ ' . $this->t('El comando sqlite3 no está disponible en el sistema. Debes instalar SQLite3 para que funcione correctamente.');
+      $message .= '<br>❌ ' . $this->t('La extensión SQLite3 de PHP no está disponible en el sistema. Debes instalar la extensión php-sqlite3 para que funcione correctamente.');
     }
 
     // Verificación del fichero de configuración
@@ -116,7 +115,7 @@ class SettingsForm extends ConfigFormBase {
     if (file_exists($claveDbPath) && is_readable($claveDbPath)) {
       $message .= '<br>✅ ' . $this->t('El fichero clave.sq3 existe y tiene permisos de lectura.');
     } else {
-      $message .= '<br>❌ ' . $this->t('El fichero clave.sq3 no existe o no tiene permisos de lectura. Debes crearlo con el comando: "<code>sqlite3 ' . DRUPAL_ROOT . '/../clave.sqq3</code>"');
+      $message .= '<br>❌ ' . $this->t('El fichero clave.sq3 no existe o no tiene permisos de lectura. Debes crearlo con el comando: "<code>sqlite3 ' . DRUPAL_ROOT . '/../clave.sq3</code>"');
     }
 
     $elements['modules_check'] = [
@@ -372,6 +371,7 @@ class SettingsForm extends ConfigFormBase {
    */
   public function validateForm(array &$form, FormStateInterface $form_state) {
     parent::validateForm($form, $form_state);
+    
     
     // Get field values
     $id_field = $form_state->getValue('id_field');
