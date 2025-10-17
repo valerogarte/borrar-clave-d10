@@ -48,11 +48,10 @@ class ClaveLogout {
    * Ejecuta la lógica de logout para Cl@ve.
    */
   public function logout() {
-    $this->logger->info('El servicio claveLogout ha sido invocado durante el logout del usuario.');
 
     $config = $this->configFactory->get('minsait_login_clave.settings');
 
-    if (!$config->get('enable_clave') ?: false) {
+    if (!$config->get('enable_clave')) {
       $this->logger->error('Cl@ve no habilitada.');
       throw new ServiceUnavailableHttpException(NULL, 'Error en la configuración de SAML. Clave no habilitada.');
     }

@@ -190,7 +190,6 @@ function minsait_login_clave_user_logout(AccountInterface $account) {
       '',
       $isSecure, // secure flag based on HTTPS
       true, // httpOnly
-      'Strict' // sameSite
     );
     
     // Deslogar al usuario
