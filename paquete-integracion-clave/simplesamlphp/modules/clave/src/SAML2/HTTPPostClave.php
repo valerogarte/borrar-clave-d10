@@ -1,17 +1,13 @@
 <?php
 namespace SimpleSAML\Module\clave\SAML2;
 
-use SAML2\DOMDocumentFactory;
-use SAML2\HTTPPost;
-use SAML2\LogoutRequest;
+use Nyholm\Psr7\ServerRequest;
+use SAML2\Binding;
 use SAML2\Message;
-use SAML2\Request;
-use SAML2\Utils;
-use Webmozart\Assert\Assert;
+use SimpleSAML\Utils\HTTP as HttpUtils;
 
-class HTTPPostClave extends HTTPPost
+class HTTPPostClave extends Binding
 {
-
     /**
      * Este método se ha sobreescrito ya que Clave espera el parámetro de request de manera diferente a lo que espera SimpleSAML
      *
@@ -19,40 +15,22 @@ class HTTPPostClave extends HTTPPost
      */
     public function send(Message $message): void
     {
-        if ($this->destination === null) {
-            $destination = $message->getDestination();
-            if ($destination === null) {
-                throw new \Exception('Cannot send message, no destination set.');
-            }
-        } else {
-            $destination = $this->destination;
+        $modernMessage = LegacyMessageConverter::toModern($message);
+        $destination = $this->destination ?? $modernMessage->getDestination();
+        if ($destination === null) {
+            throw new \Exception('Cannot send message, no destination set.');
         }
+
         $relayState = $message->getRelayState();
 
-        $msgStr = $message->toSignedXML();
+        $binding = new ModernHTTPPostClave();
+        $binding->setDestination($destination);
+        $binding->setRelayState($relayState);
 
-        Utils::getContainer()->debugMessage($msgStr, 'out');
-        $msgStr = $msgStr->ownerDocument->saveXML($msgStr);
+        $response = $binding->send($modernMessage);
 
-        $msgStr = base64_encode($msgStr);
-
-        // Si el SAML que se envía es de tipo LogoutRequest hay que mandarlo a Clave como parámetro 'logoutRequest'
-        if ($message instanceof LogoutRequest) {
-            $msgType = 'logoutRequest';
-        } else if ($message instanceof Request) {
-            $msgType = 'SAMLRequest';
-        } else {
-            $msgType = 'SAMLResponse';
-        }
-
-        $post = [];
-        $post[$msgType] = $msgStr;
-
-        if ($relayState !== null) {
-            $post['RelayState'] = $relayState;
-        }
-
-        Utils::getContainer()->postRedirect($destination, $post);
+        $httpUtils = new HttpUtils();
+        $httpUtils->redirectTrustedURL($response->getHeaderLine('Location'));
     }
 
     /**
@@ -62,47 +40,31 @@ class HTTPPostClave extends HTTPPost
      */
     public function receive(): Message
     {
-        // Se reasigna el parámetro 'logoutResponse' que se recibe de Clave al parámetro 'SAMLRequest' que espera SimpleSAML
-        if (array_key_exists('SAMLRequest', $_POST)) {
-            $msgStr = $_POST['SAMLRequest'];
-        } else if (array_key_exists('logoutResponse', $_POST)) {
-            $msgStr = $_POST['logoutResponse'];
-            $_POST['SAMLRequest'] = $msgStr;
-        } elseif (array_key_exists('SAMLResponse', $_POST)) {
-            $msgStr = $_POST['SAMLResponse'];
-        } else {
-            throw new \Exception('Missing SAMLRequest or SAMLResponse parameter.');
+        $parsedBody = $_POST;
+        if (isset($parsedBody['logoutResponse']) && !isset($parsedBody['SAMLRequest'])) {
+            $parsedBody['SAMLRequest'] = $parsedBody['logoutResponse'];
         }
 
-        $msgStr = base64_decode($msgStr, true);
+        $request = new ServerRequest(
+            $_SERVER['REQUEST_METHOD'] ?? 'POST',
+            $_SERVER['REQUEST_URI'] ?? '/',
+            [],
+            null,
+            '1.1',
+            $_SERVER,
+        );
+        $request = $request->withParsedBody($parsedBody);
 
-        $xml = new \DOMDocument();
-        $xml->loadXML($msgStr);
-        $msgStr = $xml->saveXML();
+        $binding = new \SimpleSAML\SAML2\Binding\HTTPPost();
+        $modernMessage = $binding->receive($request);
 
-        $document = DOMDocumentFactory::fromString($msgStr);
-        Utils::getContainer()->debugMessage($document->documentElement, 'in');
-        if (! $document->firstChild instanceof \DOMElement) {
-            throw new \Exception('Malformed SAML message received.');
+        $legacy = LegacyMessageConverter::toLegacy($modernMessage);
+
+        if ($binding->getRelayState() !== null) {
+            $legacy->setRelayState($binding->getRelayState());
         }
 
-        $msg = Message::fromXML($document->firstChild);
-
-        /**
-         * 3.5.5.2 - SAML Bindings
-         *
-         * If the message is signed, the Destination XML attribute in the root SAML element of the protocol
-         * message MUST contain the URL to which the sender has instructed the user agent to deliver the
-         * message.
-         */
-        if ($msg->isMessageConstructedWithSignature()) {
-            Assert::notNull($msg->getDestination()); // Validation of the value must be done upstream
-        }
-
-        if (array_key_exists('RelayState', $_POST)) {
-            $msg->setRelayState($_POST['RelayState']);
-        }
-
-        return $msg;
+        return $legacy;
     }
+
 }
