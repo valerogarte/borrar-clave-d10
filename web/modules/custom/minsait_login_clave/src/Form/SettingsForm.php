@@ -118,6 +118,16 @@ class SettingsForm extends ConfigFormBase {
       $message .= '<br>❌ ' . $this->t('El fichero clave.sq3 no existe o no tiene permisos de lectura. Debes crearlo con el comando: "<code>sqlite3 ' . DRUPAL_ROOT . '/../clave.sq3</code>"');
     }
 
+    // Verificación del servidor web (debe ser Apache, no Nginx)
+    $server_software = $_SERVER['SERVER_SOFTWARE'] ?? '';
+    if (stripos($server_software, 'apache') !== FALSE) {
+      $message .= '<br>✅ ' . $this->t('El servidor web es Apache.');
+    } elseif (stripos($server_software, 'nginx') !== FALSE) {
+      $message .= '<br>❌ ' . $this->t('El servidor web es Nginx. Se requiere Apache para el correcto funcionamiento de Cl@ve.');
+    } else {
+      $message .= '<br>⚠ ' . $this->t('No se ha podido determinar el servidor web o no es Apache. Se recomienda usar Apache.');
+    }
+
     $elements['modules_check'] = [
       '#type' => 'markup',
       '#markup' => '<div style="border:1px solid #ccc; padding:8px; margin-bottom:20px;">' . $message . '</div>',
