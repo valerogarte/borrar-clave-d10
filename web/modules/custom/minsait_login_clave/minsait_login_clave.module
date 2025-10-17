@@ -170,29 +170,43 @@ function minsait_login_clave_user_form_validate(array &$form, FormStateInterface
  */
 function minsait_login_clave_user_logout(AccountInterface $account) {
   $config = \Drupal::config('minsait_login_clave.settings');
-  if ($config->get('enable_clave') && $config->get('logout_clave')) {
-    if (isset($_COOKIE['minsait_login_clave'])) {
-      // Create a secure cookie deletion with matching flags
-      $request = \Drupal::request();
-      $isSecure = $request->isSecure();
-      
-      // Delete cookie with same security flags as creation
-      setcookie(
-        'minsait_login_clave',
-        '',
-        time() - 3600,
-        '/',
-        '',
-        $isSecure, // secure flag based on HTTPS
-        true, // httpOnly
-        'Strict' // sameSite
-      );
-      
-      // Deslogar al usuario
-      $session = \Drupal::request()->getSession();
-      $session->invalidate();
   
-      \Drupal::service('minsait_login_clave.clave_logout')->logout();
+  // Only proceed if Cl@ve is enabled and logout_clave is configured
+  if (!$config->get('enable_clave') || !$config->get('logout_clave')) {
+    return;
+  }
+  
+  if (isset($_COOKIE['minsait_login_clave'])) {
+    // Create a secure cookie deletion with matching flags
+    $request = \Drupal::request();
+    $isSecure = $request->isSecure();
+    
+    // Delete cookie with same security flags as creation
+    setcookie(
+      'minsait_login_clave',
+      '',
+      time() - 3600,
+      '/',
+      '',
+      $isSecure, // secure flag based on HTTPS
+      true, // httpOnly
+      'Strict' // sameSite
+    );
+    
+    // Deslogar al usuario
+    $session = \Drupal::request()->getSession();
+    $session->invalidate();
+
+    // Try to logout from Cl@ve, but don't block if it fails
+    try {
+      if (\Drupal::hasService('minsait_login_clave.clave_logout')) {
+        \Drupal::service('minsait_login_clave.clave_logout')->logout();
+      }
+    } catch (\Throwable $e) {
+      // Log the error but don't block the logout process
+      \Drupal::logger('minsait_login_clave')->warning('Error al cerrar sesión en Cl@ve: @message', [
+        '@message' => $e->getMessage()
+      ]);
     }
   }
 }
