@@ -137,7 +137,17 @@ class MinsaitLoginClaveController extends ControllerBase {
         $response = $this->redirect('<front>');
       }
 
-      $cookie = new Cookie('minsait_login_clave', json_encode($user->id()), time() + 86400, '/');
+      $cookie = new Cookie(
+        'minsait_login_clave', 
+        json_encode($user->id()), 
+        time() + 86400, 
+        '/',
+        null,
+        true, // secure (HTTPS only)
+        true, // httpOnly (not accessible via JavaScript)
+        false,
+        Cookie::SAMESITE_STRICT // CSRF protection
+      );
 
       $response->headers->setCookie($cookie);
 
