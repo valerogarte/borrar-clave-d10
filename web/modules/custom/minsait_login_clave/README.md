@@ -78,12 +78,12 @@ Lanza los siguientes comandos:
 Importante, estos comandos son para un arranque inicial, posteriormente se deberá configurar con los datos finales.
 
 #### Configuración
-`rsync -av --delete /path-to-module/minsait_login_clave/demo/3.0.1/metadata/   /path-to-vendor/vendor/simplesamlphp/simplesamlphp/metadata/`
-`rsync -av --delete /path-to-module/minsait_login_clave/demo/3.0.1/cert/   /path-to-vendor/vendor/simplesamlphp/simplesamlphp/cert/`
-`rsync -av --delete /path-to-module/minsait_login_clave/demo/3.0.1/config/   /path-to-vendor/vendor/simplesamlphp/simplesamlphp/config/`
+`rsync -av --delete /var/www/html/web/modules/custom/minsait_login_clave/demo/3.0.1/simplesamlphp/metadata/   /var/www/html/vendor/simplesamlphp/simplesamlphp/metadata/`
+`rsync -av --delete /var/www/html/web/modules/custom/minsait_login_clave/demo/3.0.1/simplesamlphp/cert/   /var/www/html/vendor/simplesamlphp/simplesamlphp/cert/`
+`rsync -av --delete /var/www/html/web/modules/custom/minsait_login_clave/demo/3.0.1/simplesamlphp/config/   /var/www/html/vendor/simplesamlphp/simplesamlphp/config/`
 
 #### Módulos
-`rsync -av --delete /path-to-module/minsait_login_clave/demo/3.0.1/modules/   /path-to-vendor/vendor/simplesamlphp/simplesamlphp/modules/`
+`rsync -av --delete /var/www/html/web/modules/custom/minsait_login_clave/demo/3.0.1/simplesamlphp/modules/   /var/www/html/vendor/simplesamlphp/simplesamlphp/modules/`
 
 ### Test
 Revisa que todo funcione correctamente con datos demo.

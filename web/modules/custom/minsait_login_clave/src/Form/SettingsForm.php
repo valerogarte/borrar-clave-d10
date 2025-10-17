@@ -34,6 +34,7 @@ class SettingsForm extends ConfigFormBase {
   private function performVerifications() {
     $elements = [];
     $vendorSimpleSamlPHP = DRUPAL_ROOT . '/../vendor/simplesamlphp';
+    $path_module = \Drupal::service('extension.list.module')->getPath('minsait_login_clave');
 
     // Verificación de SimpleSAMLphp
     if (!is_dir($vendorSimpleSamlPHP)) {
@@ -83,6 +84,8 @@ class SettingsForm extends ConfigFormBase {
           '@path' => $modulesPath,
           '@missing' => implode(', ', $missingModules)
         ]);
+        $message .= '<br>' . $this->t('Puedes copiar los módulos faltantes ejecutando el siguiente comando en el servidor:');
+        $message .= '<br><br><pre><code>rsync -av --delete '. DRUPAL_ROOT . '/' .$path_module .'/demo/3.0.1/simplesamlphp/modules/   '. DRUPAL_ROOT .'/../vendor/simplesamlphp/simplesamlphp/modules/</code></pre>';
       }
     }
 
@@ -105,9 +108,13 @@ class SettingsForm extends ConfigFormBase {
         $message .= '<br>✅ ' . $this->t('El fichero de configuración config.php está correctamente configurado para usar la base de datos SQLite.');
       } else {
         $message .= '<br>❌ ' . $this->t('El fichero de configuración config.php no está correctamente configurado para usar la base de datos SQLite. Debes revisar las opciones store.type y database. Recuerda que tienes que usar el config.php del kit Cl@ve y modificar el store.type a "sql" y la ruta de la base de datos a la ruta completa del fichero clave.sq3.');
+        $message .= '<br>' . $this->t('Puedes copiar el fichero de configuración ejecutando el siguiente comando en el servidor:');
+        $message .= '<br><br><pre><code>rsync -av '. DRUPAL_ROOT . '/' .$path_module .'/demo/3.0.1/simplesamlphp/config/config.php   '. DRUPAL_ROOT .'/../vendor/simplesamlphp/simplesamlphp/config/</code></pre>';
       }
     } else {
       $message .= '<br>❌ ' . $this->t('El fichero de configuración config.php no existe o no tiene permisos de lectura.');
+      $message .= '<br>' . $this->t('Puedes copiar el fichero de configuración ejecutando el siguiente comando en el servidor:');
+      $message .= '<br><br><pre><code>rsync -av '. DRUPAL_ROOT . '/' .$path_module .'/demo/3.0.1/simplesamlphp/config/config.php   '. DRUPAL_ROOT .'/../vendor/simplesamlphp/simplesamlphp/config/</code></pre>';
     }
 
     // Verificación del fichero clave.sq3
@@ -115,7 +122,9 @@ class SettingsForm extends ConfigFormBase {
     if (file_exists($claveDbPath) && is_readable($claveDbPath)) {
       $message .= '<br>✅ ' . $this->t('El fichero clave.sq3 existe y tiene permisos de lectura.');
     } else {
-      $message .= '<br>❌ ' . $this->t('El fichero clave.sq3 no existe o no tiene permisos de lectura. Debes crearlo con el comando: "<code>sqlite3 ' . DRUPAL_ROOT . '/../clave.sq3</code>"');
+      $message .= '<br>❌ ' . $this->t('El fichero clave.sq3 no existe o no tiene permisos de lectura.');
+      $message .= '<br>' . $this->t('Puedes crear la base de datos ejecutando el siguiente comando en el servidor:');
+      $message .= '<br><br><pre><code>sqlite3 /var/www/html/web/../clave.sq3 ".databases"</code></pre>';
     }
 
     // Verificación del servidor web (debe ser Apache, no Nginx)
@@ -126,6 +135,17 @@ class SettingsForm extends ConfigFormBase {
       $message .= '<br>❌ ' . $this->t('El servidor web es Nginx. Se requiere Apache para el correcto funcionamiento de Cl@ve.');
     } else {
       $message .= '<br>⚠ ' . $this->t('No se ha podido determinar el servidor web o no es Apache. Se recomienda usar Apache.');
+    }
+
+    // Verifica que simplesaml responde correctamente
+    $simplesamlUrl = \Drupal::request()->getSchemeAndHttpHost() . '/simplesaml/';
+    $response = @file_get_contents($simplesamlUrl);
+    if ($response !== FALSE) {
+      $message .= '<br>✅ ' . $this->t('Simplesaml está respondiendo correctamente.');
+    } else {
+      $message .= '<br>❌ ' . $this->t('<a href="' . $simplesamlUrl . '" target="_blank">Simplesaml</a> no está respondiendo. Verifica la configuración de tu Apache.');
+      $message .= '<br>' . $this->t('Puedes configurar Apache ejecutando el siguiente comando en el servidor:');
+      $message .= '<br><br><pre><code>cp ' . DRUPAL_ROOT . '/' . $path_module . '/demo/3.0.1/ddev/apache-site.conf /var/www/html/.ddev/apache/apache-site.conf</code></pre>';
     }
 
     $elements['modules_check'] = [
